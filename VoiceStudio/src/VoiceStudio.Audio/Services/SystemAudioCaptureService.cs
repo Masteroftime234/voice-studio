@@ -29,7 +29,11 @@ public sealed class SystemAudioCaptureService : IDisposable
 {
     public const int MaxCapturedApps = 8;
     private const int ScanIntervalMs = 1500;
+    private const float SilenceThreshold = 0.0004f;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
+
+    /// <summary>Une application reste dans le mixeur ce temps-là après s'être tue.</summary>
+    private static readonly TimeSpan KeepAfterSilence = TimeSpan.FromSeconds(30);
 
     public static readonly string[] DefaultExcludedApps =
         ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
@@ -41,7 +45,9 @@ public sealed class SystemAudioCaptureService : IDisposable
     private volatile bool _stopRequested;
     private volatile string[] _excludedApps = DefaultExcludedApps;
     private AppAudioSource[] _sources = [];
+    private string[] _excludedPlaying = [];
     private readonly Dictionary<int, string?> _names = new();
+    private readonly Dictionary<int, DateTime> _lastSound = new();
     private HashSet<int> _lastRaw = [];
     private HashSet<int> _lastResult = [];
     private string[]? _lastExcluded;
@@ -241,6 +247,7 @@ public sealed class SystemAudioCaptureService : IDisposable
     private HashSet<int> FindAudioProcesses(MMDeviceEnumerator enumerator)
     {
         var found = new HashSet<int>();
+        var now = DateTime.UtcNow;
 
         foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
         {
@@ -257,6 +264,16 @@ public sealed class SystemAudioCaptureService : IDisposable
                     if (session.State == AudioSessionState.AudioSessionStateExpired) continue;
                     int processId = (int)session.GetProcessID;
                     if (processId == 0 || processId == _ownProcessId) continue;
+
+                    // Beaucoup d'applications gardent un flux ouvert sans rien jouer
+                    // (Steam, Windows, les utilitaires de carte son). On ne retient que
+                    // celles qui font vraiment du son, et on les garde un moment après.
+                    float peak = 0f;
+                    try { peak = session.AudioMeterInformation.MasterPeakValue; } catch { }
+                    if (peak > SilenceThreshold) _lastSound[processId] = now;
+                    else if (!_lastSound.TryGetValue(processId, out DateTime heard) ||
+                             now - heard > KeepAfterSilence) continue;
+
                     found.Add(processId);
                 }
             }
@@ -270,12 +287,17 @@ public sealed class SystemAudioCaptureService : IDisposable
             }
         }
 
+        foreach (int stale in _lastSound.Where(entry => now - entry.Value > KeepAfterSilence)
+                     .Select(entry => entry.Key).ToList())
+            _lastSound.Remove(stale);
+
         var excluded = _excludedApps;
         if (found.Count == 0)
         {
             _lastRaw.Clear();
             _lastExcluded = excluded;
             _lastResult = [];
+            PublishExcluded([]);
             return found;
         }
 
@@ -283,10 +305,19 @@ public sealed class SystemAudioCaptureService : IDisposable
         if (ReferenceEquals(excluded, _lastExcluded) && found.SetEquals(_lastRaw))
             return [.._lastResult];
 
+
         var parents = ProcessTree.GetParentMap();
         _names.Clear();
 
-        found.RemoveWhere(processId => IsExcluded(processId, parents, excluded));
+        var silenced = new List<string>();
+        found.RemoveWhere(processId =>
+        {
+            if (!IsExcluded(processId, parents, excluded)) return false;
+            string? name = NameOf(processId);
+            if (name != null) silenced.Add(name);
+            return true;
+        });
+        PublishExcluded(silenced);
 
         // Dédoublonnage parent / enfant.
         var result = new HashSet<int>(found);
@@ -299,6 +330,21 @@ public sealed class SystemAudioCaptureService : IDisposable
         _lastExcluded = excluded;
         _lastResult = [..result];
         return result;
+    }
+
+    /// <summary>
+    /// Applications qui jouent du son mais qui sont exclues du mix (Discord, par exemple).
+    /// L'interface les affiche en grisé pour qu'on sache qu'elles ne sont pas oubliées.
+    /// </summary>
+    public IReadOnlyList<string> ExcludedPlaying => Volatile.Read(ref _excludedPlaying);
+
+    private void PublishExcluded(List<string> names)
+    {
+        var current = Volatile.Read(ref _excludedPlaying);
+        var distinct = names.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name).ToArray();
+        if (current.SequenceEqual(distinct, StringComparer.OrdinalIgnoreCase)) return;
+        Volatile.Write(ref _excludedPlaying, distinct);
+        SourcesChanged?.Invoke();
     }
 
     /// <summary>Nom d'un processus, retenu le temps d'un relevé.</summary>

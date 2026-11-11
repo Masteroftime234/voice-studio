@@ -37,50 +37,15 @@
 
         <!-- Une étiquette d'application, déplaçable d'un bus à l'autre -->
         <DataTemplate x:Key="AppChip">
-            <Border Background="{StaticResource ControlBrush}" CornerRadius="8" Padding="9,7" Margin="0,0,0,6"
+            <Border Background="{StaticResource ControlBrush}" CornerRadius="8" Padding="10,8" Margin="0,0,0,6"
                     Cursor="SizeAll" MouseMove="OnAppChipMouseMove"
                     ToolTip="Fais glisser cette application vers un autre bus">
                 <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding Title}" Foreground="{StaticResource TextBrush}"
-                                   FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding Subtitle}" />
-                        <TextBlock Grid.Column="1" Text="{Binding VolumeText}" Style="{StaticResource MutedText}"
-                                   Margin="6,0,0,0" />
-                    </Grid>
-                    <Grid Margin="0,6,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Slider Grid.Column="0" Style="{StaticResource ThinSlider}" Value="{Binding Volume}"
-                                Margin="0,0,8,0" />
-                        <ToggleButton Grid.Column="1" IsChecked="{Binding IsMuted}" Width="22" Height="18"
-                                      Cursor="Hand" ToolTip="Couper cette application">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="Root" Background="#2C2C3A" CornerRadius="5">
-                                        <TextBlock x:Name="Label" Text="M" FontSize="10" FontWeight="SemiBold"
-                                                   Foreground="{StaticResource MutedTextBrush}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsChecked" Value="True">
-                                            <Setter TargetName="Root" Property="Background" Value="#3A1A22" />
-                                            <Setter TargetName="Label" Property="Foreground"
-                                                    Value="{StaticResource DangerBrush}" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
-                    </Grid>
+                    <TextBlock Text="{Binding Title}" Foreground="{StaticResource TextBrush}" FontSize="12"
+                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Subtitle}" />
                     <ProgressBar Value="{Binding Level, Mode=OneWay}" Style="{StaticResource LevelMeter}"
-                                 Height="3" Margin="0,6,0,0" />
+                                 Height="3" Margin="0,7,0,0" />
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -230,6 +195,37 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
+
+                        <!-- Applications volontairement laissées hors du mix -->
+                        <Border Width="186" Margin="4,0,0,0" Padding="10,14" CornerRadius="12"
+                                BorderThickness="1" BorderBrush="{StaticResource CardBorderBrush}"
+                                Background="Transparent" VerticalAlignment="Top"
+                                Visibility="{Binding HasExcludedPlaying,
+                                             Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="Hors du mix" FontSize="13" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{StaticResource MutedTextBrush}" />
+                                <TextBlock Style="{StaticResource MutedText}" FontSize="11" Margin="0,8,0,10"
+                                           TextAlignment="Center"
+                                           Text="Ces applications jouent du son mais ne sont pas envoyées : tes amis s'entendraient en écho." />
+                                <ItemsControl ItemsSource="{Binding ExcludedPlaying}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#16161E" CornerRadius="8" Padding="10,8"
+                                                    Margin="0,0,0,6">
+                                                <TextBlock Text="{Binding}" FontSize="12"
+                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Style="{StaticResource MutedText}" FontSize="11" Margin="0,4,0,0"
+                                           TextAlignment="Center"
+                                           Text="Liste modifiable dans Réglages." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 

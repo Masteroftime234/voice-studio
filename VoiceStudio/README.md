@@ -12,7 +12,7 @@ Applications du PC (sauf Discord) ───┘     (VB-CABLE, le câble virtuel)
 
 Cinq pages, en onglets en haut de la fenêtre.
 
-**Mixer** — une table de mixage à tranches verticales : volume général, micro, soundboard, puis quatre bus — **Jeu, Chat, Média, Autres**. Chaque application qui joue du son apparaît sous forme d'étiquette dans un bus, avec son propre volume et son bouton couper, et se **fait glisser d'un bus à l'autre** à la souris. Le classement de départ se fait sur le nom de l'application (Spotify et les navigateurs vont dans Média, par exemple) ; ton rangement et tes volumes sont retenus d'une session à l'autre.
+**Mixer** — une table de mixage à tranches verticales : volume général, micro, soundboard, puis quatre bus — **Jeu, Chat, Média, Autres**. Chaque application qui joue vraiment du son apparaît sous forme d'étiquette dans un bus et se **fait glisser d'un bus à l'autre** à la souris ; le volume se règle au fader du bus. Une application qui garde un flux ouvert sans rien jouer (Steam, les utilitaires de carte son) n'apparaît pas ; une application qui se tait disparaît au bout de 30 secondes. Le classement de départ se fait sur le nom (Spotify et les navigateurs vont dans Média) ; ton rangement est retenu d'une session à l'autre. Une colonne « Hors du mix » montre les applications qui jouent du son mais restent exclues, Discord en tête.
 
 **Voix** — effets vocaux appliqués à ta voix : hauteur (grave/aiguë sans changer la vitesse), filtre, robot, distorsion, radio, téléphone, écho, réverbération. Combinables, avec 10 presets fournis et tes propres presets enregistrables.
 

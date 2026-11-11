@@ -60,6 +60,14 @@ public sealed class MixerViewModel : ObservableObject
     /// <summary>Les bus : Jeu, Chat, Média, Autres.</summary>
     public ObservableCollection<BusViewModel> Buses { get; } = [];
 
+    /// <summary>
+    /// Applications qui jouent du son mais restent hors du mix, comme Discord :
+    /// les capturer renverrait à tes amis leur propre voix.
+    /// </summary>
+    public ObservableCollection<string> ExcludedPlaying { get; } = [];
+
+    public bool HasExcludedPlaying => ExcludedPlaying.Count > 0;
+
     public ObservableCollection<AudioDeviceInfo> Microphones { get; } = [];
     public ObservableCollection<AudioDeviceInfo> Outputs { get; } = [];
 
@@ -164,6 +172,17 @@ public sealed class MixerViewModel : ObservableObject
             if (!bus.Apps.SequenceEqual(apps)) bus.SetApps(apps);
         }
         OnPropertyChanged(nameof(HasApps));
+
+        var excluded = _engine.SystemAudio.ExcludedPlaying
+            .Select(FriendlyAppName.For)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (!ExcludedPlaying.SequenceEqual(excluded))
+        {
+            ExcludedPlaying.Clear();
+            foreach (string name in excluded) ExcludedPlaying.Add(name);
+            OnPropertyChanged(nameof(HasExcludedPlaying));
+        }
     }
 
     /// <summary>Déplace une application vers un autre bus (glisser-déposer).</summary>
