@@ -90,7 +90,7 @@ Pour que le micro s'appelle « Voice Studio Virtual Mic » dans Discord : Param�
 | Partie | Vérifié |
 |---|---|
 | Moteur audio (`VoiceStudio.Audio`) | Compilé sans erreur contre le code source de NAudio 2.2.1 |
-| Cœur du moteur (mixage, bus, bascule, limiteur, gain, effets, suppression de bruit, noise gate, ducking, push-to-talk, soundboard) | 82 tests automatiques, tous passent |
+| Cœur du moteur (mixage, bus, bascule, limiteur, gain, effets, suppression de bruit, noise gate, ducking, push-to-talk, soundboard) | 83 tests automatiques, tous passent |
 | ViewModels et réglages | Compilés sans erreur |
 | Fenêtre WPF (XAML, `App.xaml.cs`, `MainWindow.xaml.cs`) | **Non compilée** : WPF ne se compile que sous Windows |
 | Capture réelle (micro, applications), sortie VB-CABLE, Discord | **Non testée** : demande un PC Windows avec du son |
@@ -122,6 +122,7 @@ Choix techniques :
 
 - Format interne unique : 48 kHz, stéréo, float 32 bits. Chaque source est convertie à l'entrée.
 - Threads de capture et thread de sortie reliés par un tampon circulaire sans verrou ; aucune allocation dans les callbacks audio.
+- Le limiteur de sortie regarde le son environ 3 ms en avance et baisse son gain avant que la crête n'arrive. Un limiteur qui corrige échantillon par échantillon déforme l'onde et s'entend comme une saturation : c'est précisément ce qu'il faut éviter.
 - Les horloges du micro et du câble virtuel ne sont pas synchronisées : si un tampon dépasse 150 ms, le retard est rattrapé pour que la latence ne s'accumule pas. Quand les données manquent, le son descend et remonte en 2 ms au lieu de couper net : un à-coup s'entend comme un blanc, pas comme un craquement.
 - La recherche des applications qui jouent du son tourne pendant l'audio : le travail coûteux (photo de tous les processus, lecture de leurs noms) n'est refait que lorsque la liste change.
 - NAudio 2.2.1 (version stable). La version 3 intègre la capture par application mais est encore en préversion.

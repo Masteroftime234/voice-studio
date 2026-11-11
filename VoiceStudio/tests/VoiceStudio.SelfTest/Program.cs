@@ -119,7 +119,7 @@ static float PeakOf(float[] buffer, int from = 0)
     Check(b.Peak < 0.05f && a.Peak > 0.2f, "mixeur : indicateurs de niveau par source");
 
     a.Volume = 0f;
-    var ramp = Pull(mixer, 480);
+    var ramp = Pull(mixer, 960); // le limiteur retarde de 3 ms : on lit un peu plus loin
     bool smooth = true;
     for (int i = 2; i < ramp.Length; i += 2)
         if (Math.Abs(ramp[i] - ramp[i - 2]) > 0.01f) smooth = false;
@@ -144,6 +144,24 @@ static float PeakOf(float[] buffer, int from = 0)
 
     var quiet = new MixerEngine(new MixerChannel("A", 48000) { Source = new SineSource(440, 0.5f) });
     Check(Math.Abs(PeakOf(Pull(quiet, 48000), 9600) - 0.5f) < 0.01f, "limiteur : n'agit pas sur un signal normal");
+
+    // Le point qui compte : limiter sans déformer l'onde.
+    // Un limiteur qui corrige échantillon par échantillon rabote les crêtes et s'entend
+    // comme une saturation. On vérifie donc que la sortie reste une sinusoïde propre.
+    var tooLoud = new MixerEngine(new MixerChannel("A", 48000) { Source = new SineSource(200, 1.8f) });
+    var limited = Pull(tooLoud, 48000);
+    var tail = limited[48000..]; // la seconde moitié, une fois le limiteur stabilisé
+    float amplitude = PeakOf(tail);
+    double worstError = 0;
+    int zero = -1;
+    for (int i = 2; i < tail.Length - 2; i += 2)
+        if (tail[i - 2] < 0 && tail[i] >= 0) { zero = i; break; }
+    for (int i = zero; i < tail.Length - 2; i += 2)
+    {
+        double phase = 2 * Math.PI * 200 * ((i - zero) / 2) / 48000.0;
+        worstError = Math.Max(worstError, Math.Abs(tail[i] - amplitude * Math.Sin(phase)));
+    }
+    Check(worstError < amplitude * 0.02, $"limiteur : l'onde reste intacte (écart {worstError / amplitude:P0})");
 }
 
 // --- Chaîne de capture : mono 44,1 kHz 16 bits → stéréo 48 kHz --------------

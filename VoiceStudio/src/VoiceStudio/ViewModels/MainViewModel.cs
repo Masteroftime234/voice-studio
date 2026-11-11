@@ -220,6 +220,7 @@ public sealed class MainViewModel : ObservableObject
             {
                 OutputLatencyMs = _settings.OutputLatencyMs,
                 CaptureBufferMs = virtualInput ? 40 : 20,
+                CompatibilityMode = _settings.CompatibilityMode,
                 MonitorId = _settings.MonitorEnabled ? SettingsPage.SelectedMonitor?.Id : null
             });
             SaveSettings();

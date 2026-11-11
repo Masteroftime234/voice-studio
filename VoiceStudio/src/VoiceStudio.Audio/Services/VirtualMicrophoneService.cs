@@ -19,13 +19,17 @@ public sealed class VirtualMicrophoneService : IDisposable
 
     public bool IsRunning { get; private set; }
 
-    public void Start(MMDevice device, ISampleProvider mix, int latencyMilliseconds)
+    /// <param name="eventSync">
+    /// Faux : Voice Studio pousse les données à intervalle régulier plutôt que d'attendre
+    /// le signal du pilote. Plus tolérant avec les câbles audio virtuels.
+    /// </param>
+    public void Start(MMDevice device, ISampleProvider mix, int latencyMilliseconds, bool eventSync = true)
     {
         lock (_gate)
         {
             StopCore();
 
-            var output = new WasapiOut(device, AudioClientShareMode.Shared, true, latencyMilliseconds);
+            var output = new WasapiOut(device, AudioClientShareMode.Shared, eventSync, latencyMilliseconds);
             try
             {
                 output.PlaybackStopped += OnPlaybackStopped;

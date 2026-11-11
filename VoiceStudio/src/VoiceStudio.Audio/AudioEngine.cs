@@ -16,6 +16,13 @@ public sealed record EngineOptions(string MicrophoneId, string OutputId)
 
     /// <summary>Taille du tampon de capture du micro, en millisecondes.</summary>
     public int CaptureBufferMs { get; init; } = 20;
+
+    /// <summary>
+    /// Mode compatibilité : Voice Studio lit et écrit le son à intervalle régulier au lieu
+    /// d'attendre le signal des pilotes. Plus tolérant avec les périphériques virtuels,
+    /// au prix d'un peu de latence.
+    /// </summary>
+    public bool CompatibilityMode { get; init; }
 }
 
 /// <summary>
@@ -238,7 +245,8 @@ public sealed class AudioEngine : IDisposable
 
             try
             {
-                VoiceEffects.Chain.Source = _microphone.Start(microphone, options.CaptureBufferMs);
+                VoiceEffects.Chain.Source =
+                    _microphone.Start(microphone, options.CaptureBufferMs, !options.CompatibilityMode);
             }
             catch (Exception ex)
             {
@@ -250,7 +258,8 @@ public sealed class AudioEngine : IDisposable
 
             try
             {
-                _virtualMicrophone.Start(output, Mixer.Engine, options.OutputLatencyMs);
+                _virtualMicrophone.Start(output, Mixer.Engine, options.OutputLatencyMs,
+                    !options.CompatibilityMode);
             }
             catch (Exception ex)
             {

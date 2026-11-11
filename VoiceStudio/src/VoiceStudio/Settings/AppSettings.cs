@@ -95,6 +95,9 @@ public sealed class AppSettings
     // --- Audio ---
     public int OutputLatencyMs { get; set; } = 40;
 
+    /// <summary>Lecture et écriture à intervalle régulier plutôt qu'au signal des pilotes.</summary>
+    public bool CompatibilityMode { get; set; }
+
     public List<string> ExcludedApps { get; set; } =
         ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
 }

@@ -42,6 +42,22 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Mode compatibilité : à essayer en premier contre les craquements, surtout avec
+    /// un micro ou un câble virtuels.
+    /// </summary>
+    public bool CompatibilityMode
+    {
+        get => _settings.CompatibilityMode;
+        set
+        {
+            if (_settings.CompatibilityMode == value) return;
+            _settings.CompatibilityMode = value;
+            OnPropertyChanged();
+            _restartIfRunning();
+        }
+    }
+
     public int OutputLatencyMs
     {
         get => _settings.OutputLatencyMs;

@@ -26,13 +26,18 @@ public sealed class AudioCaptureService : IDisposable
     public long Dropouts => _pipeline?.Underruns ?? 0;
 
     /// <summary>Démarre la capture et retourne la source 48 kHz stéréo à brancher sur le mixeur.</summary>
-    public ISampleProvider Start(MMDevice device, int bufferMilliseconds = 20)
+    /// <param name="eventSync">
+    /// Vrai : le pilote prévient quand des données sont prêtes (plus réactif).
+    /// Faux : Voice Studio vient les chercher à intervalle régulier — plus tolérant avec
+    /// les cartes son virtuelles, dont certaines gèrent mal le mode par événement.
+    /// </param>
+    public ISampleProvider Start(MMDevice device, int bufferMilliseconds = 20, bool eventSync = true)
     {
         lock (_gate)
         {
             StopCore();
 
-            var capture = new WasapiCapture(device, true, bufferMilliseconds);
+            var capture = new WasapiCapture(device, eventSync, bufferMilliseconds);
             try
             {
                 var format = capture.WaveFormat;
