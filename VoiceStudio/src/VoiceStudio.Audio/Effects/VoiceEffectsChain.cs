@@ -3,7 +3,7 @@ using NAudio.Wave;
 namespace VoiceStudio.Audio.Effects;
 
 /// <summary>
-/// Chaîne de traitement de la voix : noise gate, puis les effets activés, dans l'ordre.
+/// Chaîne de traitement de la voix : suppression du bruit, noise gate, puis les effets activés.
 /// S'insère entre la capture du micro et le mixeur. La voix est traitée en mono puis recopiée en stéréo.
 /// </summary>
 public sealed class VoiceEffectsChain : ISampleProvider
@@ -14,11 +14,13 @@ public sealed class VoiceEffectsChain : ISampleProvider
     private float[] _mono = new float[AudioConstants.SampleRate / 5];
     private bool _effectsEnabled = true;
     private bool _gateWasEnabled;
+    private bool _suppressorWasEnabled;
 
     public VoiceEffectsChain()
     {
         int rate = AudioConstants.SampleRate;
         Gate = new NoiseGate(rate);
+        NoiseSuppression = new NoiseSuppressor(rate);
         _effects =
         [
             new PitchShiftEffect(rate),
@@ -36,6 +38,9 @@ public sealed class VoiceEffectsChain : ISampleProvider
     public WaveFormat WaveFormat => AudioConstants.MixFormat;
 
     public NoiseGate Gate { get; }
+
+    /// <summary>Suppression du bruit de fond, avant le noise gate.</summary>
+    public NoiseSuppressor NoiseSuppression { get; }
 
     /// <summary>Les effets, dans l'ordre d'application.</summary>
     public IReadOnlyList<VoiceEffect> Effects => _effects;
@@ -73,6 +78,10 @@ public sealed class VoiceEffectsChain : ISampleProvider
         int read = source.Read(buffer, offset, count);
         if (read < count) Array.Clear(buffer, offset + read, count - read);
 
+        bool suppressorEnabled = NoiseSuppression.Enabled;
+        if (suppressorEnabled && !_suppressorWasEnabled) NoiseSuppression.Reset();
+        _suppressorWasEnabled = suppressorEnabled;
+
         bool gateEnabled = Gate.Enabled;
         bool effectsEnabled = EffectsEnabled;
         bool anyEffect = false;
@@ -86,7 +95,8 @@ public sealed class VoiceEffectsChain : ISampleProvider
         if (gateEnabled && !_gateWasEnabled) Gate.Reset();
         _gateWasEnabled = gateEnabled;
 
-        if (!gateEnabled && !anyEffect) return count; // rien à faire : le signal passe tel quel
+        if (!suppressorEnabled && !gateEnabled && !anyEffect)
+            return count; // rien à faire : le signal passe tel quel
 
         int frames = count / 2;
         if (_mono.Length < frames) _mono = new float[frames]; // exceptionnel
@@ -94,6 +104,7 @@ public sealed class VoiceEffectsChain : ISampleProvider
         for (int i = 0, s = offset; i < frames; i++, s += 2)
             mono[i] = (buffer[s] + buffer[s + 1]) * 0.5f;
 
+        if (suppressorEnabled) NoiseSuppression.Process(mono);
         if (gateEnabled) Gate.Process(mono);
         for (int e = 0; e < _effects.Length; e++)
             if (_wasActive[e]) _effects[e].Process(mono);

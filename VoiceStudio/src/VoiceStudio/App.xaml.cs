@@ -1,4 +1,5 @@
 using System.Windows;
+using Microsoft.Win32;
 using VoiceStudio.Audio;
 using VoiceStudio.Settings;
 using VoiceStudio.ViewModels;
@@ -24,7 +25,7 @@ public partial class App : Application
         try
         {
             _engine = new AudioEngine();
-            _viewModel = new MainViewModel(_engine, new SettingsService());
+            _viewModel = new MainViewModel(_engine, new SettingsService(), new FilePicker());
         }
         catch (Exception ex)
         {
@@ -42,7 +43,23 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _viewModel?.SaveSettings();
+        _viewModel?.Dispose();
         _engine?.Dispose();
         base.OnExit(e);
+    }
+
+    /// <summary>Choix de fichiers audio pour le soundboard.</summary>
+    private sealed class FilePicker : IFilePicker
+    {
+        public IReadOnlyList<string> PickAudioFiles()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Choisir des sons",
+                Multiselect = true,
+                Filter = "Fichiers audio|*.wav;*.mp3;*.m4a;*.aac;*.wma;*.flac;*.ogg|Tous les fichiers|*.*"
+            };
+            return dialog.ShowDialog() == true ? dialog.FileNames : [];
+        }
     }
 }

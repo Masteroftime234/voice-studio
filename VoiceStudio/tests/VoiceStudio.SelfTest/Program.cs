@@ -421,6 +421,63 @@ static void ProcessBlocks(VoiceEffect effect, float[] data)
     Check(Math.Abs(resampled.Length - 96000) < 400, "soundboard : fichier mono 22 kHz converti en 48 kHz stéréo");
 }
 
+
+// --- Suppression de bruit ----------------------------------------------------
+static float RmsOf(float[] data, int from)
+{
+    double sum = 0;
+    for (int i = from; i < data.Length; i++) sum += data[i] * (double)data[i];
+    return (float)Math.Sqrt(sum / (data.Length - from));
+}
+
+{
+    // Reconstruction : désactivée, la chaîne doit rendre le signal intact (juste retardé).
+    var bypass = new NoiseSuppressor(48000);
+    var tone = MonoSine(440, 0.5f, 48000);
+    var copy = (float[])tone.Clone();
+    for (int i = 0; i < tone.Length; i += 128) bypass.Process(tone.AsSpan(i, 128));
+    float worst = 0f;
+    for (int i = 8192; i < tone.Length - 1024; i++)
+        worst = Math.Max(worst, Math.Abs(tone[i] - copy[i - 1024]));
+    Check(worst < 0.01f, $"bruit : éteinte, la chaîne restitue le signal d'origine (écart {worst:0.000})");
+
+    // Souffle seul : fortement atténué une fois le bruit appris.
+    var random = new Random(1);
+    var hiss = new float[48000 * 3];
+    for (int i = 0; i < hiss.Length; i++) hiss[i] = (float)(random.NextDouble() * 2 - 1) * 0.05f;
+    var suppressor = new NoiseSuppressor(48000) { Enabled = true, Strength = 0.7f };
+    var hissOut = (float[])hiss.Clone();
+    for (int i = 0; i < hissOut.Length; i += 128) suppressor.Process(hissOut.AsSpan(i, 128));
+    float before = RmsOf(hiss, 48000 * 2), after = RmsOf(hissOut, 48000 * 2);
+    float decibels = 20f * MathF.Log10(after / before);
+    Check(decibels < -11f, $"bruit : souffle seul atténué de {-decibels:0} dB");
+
+    // Voix dans le souffle : la voix reste, le silence devient silencieux.
+    var mixed = new float[48000 * 4];
+    for (int i = 0; i < mixed.Length; i++)
+    {
+        float noise = (float)(random.NextDouble() * 2 - 1) * 0.05f;
+        bool speaking = i > 48000 * 3; // les 3 premières secondes : bruit seul
+        mixed[i] = noise + (speaking ? (float)Math.Sin(2 * Math.PI * 220 * i / 48000) * 0.4f : 0f);
+    }
+    var voice = new NoiseSuppressor(48000) { Enabled = true, Strength = 0.7f };
+    var mixedOut = (float[])mixed.Clone();
+    for (int i = 0; i < mixedOut.Length; i += 128) voice.Process(mixedOut.AsSpan(i, 128));
+    float quiet = RmsOf(mixedOut[(48000 * 2)..(48000 * 3 - 1024)], 0);
+    float speech = RmsOf(mixedOut[(48000 * 3 + 4800)..], 0);
+    Check(quiet < 0.015f, $"bruit : silence nettoyé ({quiet:0.000} contre 0,029 au départ)");
+    Check(speech > 0.2f, $"bruit : la voix passe toujours ({speech:0.00})");
+    Check(speech / quiet > 20f, "bruit : voix nettement détachée du fond");
+    Check(mixedOut.All(float.IsFinite), "bruit : sortie stable");
+
+    // Dans la chaîne complète.
+    var chain = new VoiceEffectsChain { Source = new SineSource(440, 0.5f) };
+    chain.NoiseSuppression.Enabled = true;
+    var processed = Pull(chain, 48000);
+    Check(processed.All(float.IsFinite) && PeakOf(processed, 24000) > 0.3f,
+        "bruit : intégrée à la chaîne vocale");
+}
+
 Console.WriteLine(failures == 0 ? "\nTous les tests passent." : $"\n{failures} test(s) en échec.");
 return failures == 0 ? 0 : 1;
 

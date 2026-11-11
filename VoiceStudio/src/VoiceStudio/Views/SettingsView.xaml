@@ -1,0 +1,66 @@
+<UserControl x:Class="VoiceStudio.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
+        <StackPanel>
+
+            <Border Style="{StaticResource Card}" DataContext="{Binding SettingsPage}">
+                <StackPanel>
+                    <TextBlock Text="Audio" Style="{StaticResource TitleText}" />
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Margin="2,16,0,6">
+                        <Run Text="Latence de sortie :" />
+                        <Run Text="{Binding OutputLatencyMs, Mode=OneWay}" />
+                        <Run Text="ms" />
+                    </TextBlock>
+                    <Slider Minimum="10" Maximum="200" Value="{Binding OutputLatencyMs, Delay=400}"
+                            Style="{StaticResource VolumeSlider}" SmallChange="5" LargeChange="10"
+                            Width="380" HorizontalAlignment="Left" />
+                    <TextBlock Text="Plus bas = moins de délai, mais plus de risque de craquements. 40 ms convient à la plupart des PC."
+                               Style="{StaticResource MutedText}" Margin="0,6,0,0" MaxWidth="480"
+                               HorizontalAlignment="Left" />
+
+                    <TextBlock Text="Casque pour le retour audio" Style="{StaticResource FieldLabel}"
+                               Margin="2,20,0,6" />
+                    <ComboBox Style="{StaticResource DarkCombo}" ItemsSource="{Binding MonitorDevices}"
+                              SelectedItem="{Binding SelectedMonitor}" DisplayMemberPath="Name"
+                              Width="380" HorizontalAlignment="Left" />
+                    <TextBlock Text="S'active depuis la page Micro, avec « M'entendre dans mon casque »."
+                               Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+
+                    <TextBlock Text="Applications exclues" Style="{StaticResource FieldLabel}"
+                               Margin="2,20,0,6" />
+                    <TextBox Text="{Binding ExcludedAppsText, UpdateSourceTrigger=LostFocus}"
+                             Style="{StaticResource DarkTextBox}" Width="480" HorizontalAlignment="Left" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,6,0,0" MaxWidth="520"
+                               HorizontalAlignment="Left"
+                               Text="Leur son n'est jamais envoyé dans le micro. Garde Discord dans la liste, sinon tes amis s'entendraient en écho. Noms de processus séparés par des virgules." />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Comment régler Discord" Style="{StaticResource TitleText}" />
+                    <TextBlock Style="{StaticResource BodyText}" Margin="0,12,0,8"
+                               Text="1.  Paramètres utilisateur → Voix et vidéo." />
+                    <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,8"
+                               Text="2.  Périphérique d'entrée : CABLE Output (VB-Audio Virtual Cable)." />
+                    <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,8"
+                               Text="3.  Désactive Krisp, l'annulation d'écho et le contrôle automatique du gain : ils coupent la musique. La page Micro de Voice Studio fait ce travail à leur place." />
+                    <TextBlock Style="{StaticResource BodyText}"
+                               Text="4.  Sensibilité de la voix : règle-la à la main, assez bas pour que la musique passe." />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="À propos" Style="{StaticResource TitleText}" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,10,0,0"
+                               Text="Voice Studio mélange ton micro, les sons de ton PC et ton soundboard, puis envoie le tout dans un micro virtuel que Discord utilise comme entrée." />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0"
+                               Text="Réglages enregistrés dans %AppData%\VoiceStudio\settings.json." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

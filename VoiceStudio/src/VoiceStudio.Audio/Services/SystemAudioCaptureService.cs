@@ -41,6 +41,7 @@ public sealed class SystemAudioCaptureService : IDisposable
     private Thread? _monitorThread;
     private volatile bool _stopRequested;
     private volatile string[] _excludedApps = DefaultExcludedApps;
+    private AppAudioSource[] _sources = [];
 
     /// <summary>Source 48 kHz stéréo, stable pendant toute la vie du service.</summary>
     public ISampleProvider Output => _output;
@@ -52,6 +53,18 @@ public sealed class SystemAudioCaptureService : IDisposable
 
     /// <summary>Levé sur un thread d'arrière-plan à chaque changement d'état.</summary>
     public event Action? StateChanged;
+
+    /// <summary>Levé quand une application entre dans le mix ou en sort.</summary>
+    public event Action? SourcesChanged;
+
+    /// <summary>Les applications capturées en ce moment, chacune avec son volume.</summary>
+    public IReadOnlyList<AppAudioSource> Sources => Volatile.Read(ref _sources);
+
+    /// <summary>
+    /// Volume et état « coupé » à appliquer à une application dès qu'elle est captée,
+    /// pour retrouver les réglages d'une session à l'autre. Clé = nom du processus.
+    /// </summary>
+    public Func<string, (float Volume, bool Muted)>? ResolveSavedLevels { get; set; }
 
     /// <summary>Noms de processus (sans .exe) à ne jamais capturer.</summary>
     public IReadOnlyList<string> ExcludedApps
@@ -95,17 +108,23 @@ public sealed class SystemAudioCaptureService : IDisposable
         SetState(AppCaptureState.Stopped, "Arrêté");
     }
 
-    private sealed class Slot(int processId, string name)
+    private sealed class Slot
     {
-        public int ProcessId { get; } = processId;
-        public string Name { get; } = name;
-        public CaptureSourcePipeline Pipeline { get; } = new(AudioConstants.SampleRate, AudioConstants.Channels);
+        public Slot(int processId, string name)
+        {
+            var pipeline = new CaptureSourcePipeline(AudioConstants.SampleRate, AudioConstants.Channels);
+            Source = new AppAudioSource(name, processId, pipeline);
+        }
+
+        public AppAudioSource Source { get; }
+        public int ProcessId => Source.ProcessId;
+        public string Name => Source.Name;
         public ProcessLoopbackCapture? Capture { get; set; }
         public SampleKind Kind { get; set; }
         public volatile bool Faulted;
 
         // Thread de capture : pas d'allocation, pas de verrou.
-        public void OnData(ReadOnlySpan<byte> data) => Pipeline.Write(data, Kind);
+        public void OnData(ReadOnlySpan<byte> data) => Source.Write(data, Kind);
         public void OnStopped(Exception? error) => Faulted = true;
     }
 
@@ -157,6 +176,12 @@ public sealed class SystemAudioCaptureService : IDisposable
                     var created = TryStartCapture(processId, name, out string? failure);
                     if (created != null)
                     {
+                        if (ResolveSavedLevels != null)
+                        {
+                            var saved = ResolveSavedLevels(name);
+                            created.Source.Volume = saved.Volume;
+                            created.Source.Muted = saved.Muted;
+                        }
                         slots.Add(created);
                         failedUntil.Remove(processId);
                         changed = true;
@@ -193,12 +218,19 @@ public sealed class SystemAudioCaptureService : IDisposable
         finally
         {
             _output.SetSources([]);
+            Volatile.Write(ref _sources, []);
+            SourcesChanged?.Invoke();
             foreach (var slot in slots) slot.Capture?.Dispose();
         }
     }
 
-    private void PublishSources(List<Slot> slots) =>
-        _output.SetSources(slots.Select(slot => slot.Pipeline.Output).ToArray());
+    private void PublishSources(List<Slot> slots)
+    {
+        var sources = slots.Select(slot => slot.Source).ToArray();
+        _output.SetSources(sources);
+        Volatile.Write(ref _sources, sources);
+        SourcesChanged?.Invoke();
+    }
 
     /// <summary>
     /// Processus possédant une session audio sur une sortie active, hors exclusions.
