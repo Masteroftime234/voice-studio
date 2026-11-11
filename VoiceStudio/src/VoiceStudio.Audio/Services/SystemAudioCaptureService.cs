@@ -1,0 +1,325 @@
+using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
+using NAudio.Wave;
+using VoiceStudio.Audio.Capture;
+using VoiceStudio.Audio.Mixing;
+using VoiceStudio.Audio.Processing;
+
+namespace VoiceStudio.Audio.Services;
+
+public enum AppCaptureState
+{
+    Stopped,
+    Waiting,
+    Capturing,
+    Error
+}
+
+/// <summary>
+/// Capture « tout ce que j'écoute » : le son de chaque application qui joue de l'audio sur le PC
+/// (Spotify, navigateur, jeux, lecteur vidéo...), SAUF les applications exclues.
+///
+/// Pourquoi application par application plutôt que « toute la sortie du PC » :
+/// - Discord doit être exclu, sinon les voix des amis leur seraient renvoyées en écho ;
+/// - Voice Studio doit être exclu, sinon il capturerait son propre mix (larsen).
+/// Windows ne permet d'exclure qu'un seul processus par capture globale ; on capture donc
+/// chaque application séparément (Application Loopback) et on additionne.
+/// </summary>
+public sealed class SystemAudioCaptureService : IDisposable
+{
+    public const int MaxCapturedApps = 8;
+    private const int ScanIntervalMs = 1000;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
+
+    public static readonly string[] DefaultExcludedApps =
+        ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
+
+    private readonly MultiSourceSampleProvider _output = new();
+    private readonly object _gate = new();
+    private readonly ManualResetEventSlim _wake = new(false);
+    private readonly int _ownProcessId = Environment.ProcessId;
+    private Thread? _monitorThread;
+    private volatile bool _stopRequested;
+    private volatile string[] _excludedApps = DefaultExcludedApps;
+
+    /// <summary>Source 48 kHz stéréo, stable pendant toute la vie du service.</summary>
+    public ISampleProvider Output => _output;
+
+    public AppCaptureState State { get; private set; } = AppCaptureState.Stopped;
+
+    /// <summary>Message lisible décrivant l'état (affiché dans l'interface).</summary>
+    public string StatusMessage { get; private set; } = "Arrêté";
+
+    /// <summary>Levé sur un thread d'arrière-plan à chaque changement d'état.</summary>
+    public event Action? StateChanged;
+
+    /// <summary>Noms de processus (sans .exe) à ne jamais capturer.</summary>
+    public IReadOnlyList<string> ExcludedApps
+    {
+        get => _excludedApps;
+        set
+        {
+            _excludedApps = value.Select(name => name.Trim())
+                .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name)
+                .Where(name => name.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            _wake.Set();
+        }
+    }
+
+    public void Start()
+    {
+        lock (_gate)
+        {
+            if (_monitorThread != null) return;
+            _stopRequested = false;
+            _wake.Reset();
+            _monitorThread = new Thread(MonitorLoop) { IsBackground = true, Name = "VoiceStudio.SystemAudioMonitor" };
+            _monitorThread.SetApartmentState(ApartmentState.MTA);
+            _monitorThread.Start();
+        }
+    }
+
+    public void Stop()
+    {
+        Thread? thread;
+        lock (_gate)
+        {
+            thread = _monitorThread;
+            _monitorThread = null;
+            _stopRequested = true;
+            _wake.Set();
+        }
+        if (thread != null && thread != Thread.CurrentThread) thread.Join(5000);
+        SetState(AppCaptureState.Stopped, "Arrêté");
+    }
+
+    private sealed class Slot(int processId, string name)
+    {
+        public int ProcessId { get; } = processId;
+        public string Name { get; } = name;
+        public CaptureSourcePipeline Pipeline { get; } = new(AudioConstants.SampleRate, AudioConstants.Channels);
+        public ProcessLoopbackCapture? Capture { get; set; }
+        public SampleKind Kind { get; set; }
+        public volatile bool Faulted;
+
+        // Thread de capture : pas d'allocation, pas de verrou.
+        public void OnData(ReadOnlySpan<byte> data) => Pipeline.Write(data, Kind);
+        public void OnStopped(Exception? error) => Faulted = true;
+    }
+
+    private void MonitorLoop()
+    {
+        var slots = new List<Slot>();
+        var failedUntil = new Dictionary<int, DateTime>();
+        string? lastFailure = null;
+        SetState(AppCaptureState.Waiting, "Recherche des applications qui jouent du son…");
+
+        try
+        {
+            while (!_stopRequested)
+            {
+                bool changed = false;
+                HashSet<int> wanted;
+                try
+                {
+                    wanted = FindAudioProcesses();
+                }
+                catch (Exception ex)
+                {
+                    SetState(AppCaptureState.Error, "Impossible de lister les applications audio : " + ex.Message);
+                    _wake.Wait(3000);
+                    _wake.Reset();
+                    continue;
+                }
+
+                // 1. Retirer les captures dont l'application s'est fermée, est exclue ou a planté.
+                for (int i = slots.Count - 1; i >= 0; i--)
+                {
+                    var slot = slots[i];
+                    if (!slot.Faulted && wanted.Contains(slot.ProcessId)) continue;
+
+                    slots.RemoveAt(i);
+                    PublishSources(slots); // le thread audio cesse de lire cette source avant sa fermeture
+                    slot.Capture?.Dispose();
+                    changed = true;
+                }
+
+                // 2. Démarrer une capture pour chaque nouvelle application.
+                foreach (int processId in wanted)
+                {
+                    if (slots.Count >= MaxCapturedApps) break;
+                    if (slots.Exists(slot => slot.ProcessId == processId)) continue;
+                    if (failedUntil.TryGetValue(processId, out DateTime until) && DateTime.UtcNow < until) continue;
+
+                    string name = ProcessTree.GetName(processId) ?? $"PID {processId}";
+                    var created = TryStartCapture(processId, name, out string? failure);
+                    if (created != null)
+                    {
+                        slots.Add(created);
+                        failedUntil.Remove(processId);
+                        changed = true;
+                    }
+                    else
+                    {
+                        failedUntil[processId] = DateTime.UtcNow + RetryDelay;
+                        lastFailure = $"{name} : {failure}";
+                    }
+                }
+
+                if (changed) PublishSources(slots);
+
+                if (slots.Count > 0)
+                {
+                    string names = string.Join(", ", slots.Select(slot => slot.Name).Distinct());
+                    SetState(AppCaptureState.Capturing,
+                        slots.Count == 1 ? $"1 application capturée : {names}"
+                                         : $"{slots.Count} applications capturées : {names}");
+                }
+                else if (lastFailure != null && wanted.Count > 0)
+                {
+                    SetState(AppCaptureState.Error, "Capture impossible — " + lastFailure);
+                }
+                else
+                {
+                    SetState(AppCaptureState.Waiting, "Aucune application ne joue de son pour l'instant");
+                }
+
+                _wake.Wait(ScanIntervalMs);
+                _wake.Reset();
+            }
+        }
+        finally
+        {
+            _output.SetSources([]);
+            foreach (var slot in slots) slot.Capture?.Dispose();
+        }
+    }
+
+    private void PublishSources(List<Slot> slots) =>
+        _output.SetSources(slots.Select(slot => slot.Pipeline.Output).ToArray());
+
+    /// <summary>
+    /// Processus possédant une session audio sur une sortie active, hors exclusions.
+    /// Si un processus et l'un de ses ancêtres sont tous deux présents, seul l'ancêtre est gardé
+    /// (sa capture inclut déjà ses enfants : évite de doubler le son).
+    /// </summary>
+    private HashSet<int> FindAudioProcesses()
+    {
+        var found = new HashSet<int>();
+        var excluded = _excludedApps;
+
+        using (var enumerator = new MMDeviceEnumerator())
+        {
+            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+            {
+                try
+                {
+                    var manager = device.AudioSessionManager;
+                    manager.RefreshSessions();
+                    var sessions = manager.Sessions;
+                    int count = sessions?.Count ?? 0;
+                    for (int i = 0; i < count; i++)
+                    {
+                        using var session = sessions![i];
+                        if (session.IsSystemSoundsSession) continue;
+                        if (session.State == AudioSessionState.AudioSessionStateExpired) continue;
+                        int processId = (int)session.GetProcessID;
+                        if (processId == 0 || processId == _ownProcessId) continue;
+                        found.Add(processId);
+                    }
+                }
+                catch
+                {
+                    // périphérique retiré pendant le parcours : ignoré
+                }
+                finally
+                {
+                    device.Dispose();
+                }
+            }
+        }
+
+        if (found.Count == 0) return found;
+        var parents = ProcessTree.GetParentMap();
+
+        // Exclusions : le processus lui-même ou n'importe lequel de ses ancêtres porte un nom exclu.
+        found.RemoveWhere(processId => IsExcluded(processId, parents, excluded));
+
+        // Dédoublonnage parent / enfant.
+        var result = new HashSet<int>(found);
+        foreach (int processId in found)
+            foreach (int other in found)
+                if (processId != other && ProcessTree.IsDescendantOf(processId, other, parents))
+                    result.Remove(processId);
+        return result;
+    }
+
+    private bool IsExcluded(int processId, Dictionary<int, int> parents, string[] excluded)
+    {
+        int current = processId;
+        for (int depth = 0; depth < 32 && current != 0; depth++)
+        {
+            if (current == _ownProcessId) return true;
+            string? name = ProcessTree.GetName(current);
+            if (name == null) return depth == 0; // processus disparu
+            foreach (string excludedName in excluded)
+                if (string.Equals(name, excludedName, StringComparison.OrdinalIgnoreCase)) return true;
+            if (!parents.TryGetValue(current, out int parent) || parent == current) break;
+            current = parent;
+        }
+        return false;
+    }
+
+    private static Slot? TryStartCapture(int processId, string name, out string? failure)
+    {
+        // Float 32 bits d'abord ; PCM 16 bits en secours si Windows refuse.
+        WaveFormat[] formats =
+        [
+            AudioConstants.MixFormat,
+            new WaveFormat(AudioConstants.SampleRate, 16, AudioConstants.Channels)
+        ];
+
+        Exception? lastError = null;
+        foreach (var format in formats)
+        {
+            var slot = new Slot(processId, name) { Kind = SampleConverter.GetSampleKind(format) };
+            var capture = new ProcessLoopbackCapture(processId, format);
+            try
+            {
+                capture.DataAvailable += slot.OnData;
+                capture.Stopped += slot.OnStopped;
+                capture.Start();
+                slot.Capture = capture;
+                failure = null;
+                return slot;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                capture.Dispose();
+            }
+        }
+
+        failure = Environment.OSVersion.Version.Build < 20348
+            ? "cette version de Windows ne prend peut-être pas en charge la capture par application " +
+              "(documentée par Microsoft à partir du build 20348)"
+            : lastError?.Message ?? "erreur inconnue";
+        return null;
+    }
+
+    private void SetState(AppCaptureState state, string message)
+    {
+        if (State == state && StatusMessage == message) return;
+        State = state;
+        StatusMessage = message;
+        StateChanged?.Invoke();
+    }
+
+    public void Dispose()
+    {
+        Stop();
+        _wake.Dispose();
+    }
+}
