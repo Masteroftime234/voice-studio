@@ -139,7 +139,7 @@ static float PeakOf(float[] buffer, int from = 0)
     var mixer = new MixerEngine(loud1, loud2) { MasterVolume = 2f };
     var output = Pull(mixer, 48000);
     Check(PeakOf(output) <= 1f, "limiteur : la sortie ne dépasse jamais 0 dBFS");
-    Check(PeakOf(output, 9600) <= 0.9f, "limiteur : niveau ramené sous le seuil");
+    Check(PeakOf(output, 9600) <= 0.96f, "limiteur : niveau ramené sous le seuil");
     Check(mixer.LimiterGain < 0.5f, "limiteur : réduction de gain signalée");
 
     var quiet = new MixerEngine(new MixerChannel("A", 48000) { Source = new SineSource(440, 0.5f) });
@@ -354,6 +354,14 @@ static void ProcessBlocks(VoiceEffect effect, float[] data)
     Check(!reference.AsSpan().SequenceEqual(changed) && reference.AsSpan().SequenceEqual(bypassed),
         "effets : interrupteur général");
 
+    // Gain du micro : appliqué même quand aucun effet n'est actif.
+    var boosted = new VoiceEffectsChain { Source = new ConstantSource(0.25f), Gain = 2f };
+    var loud = Pull(boosted, 4800);
+    Check(Math.Abs(loud[^1] - 0.5f) < 1e-4, "gain : +6 dB sur un micro trop discret");
+    boosted.Gain = 0.5f;
+    Pull(boosted, 4800);
+    Check(Math.Abs(Pull(boosted, 480)[^1] - 0.125f) < 1e-4, "gain : réglage à la baisse");
+
     var service = new VoiceStudio.Audio.Services.VoiceEffectsService();
     var presets = VoicePreset.CreateBuiltIns();
     bool presetsValid = presets.All(preset => preset.Effects.All(e =>
@@ -512,6 +520,37 @@ static float RmsOf(float[] data, int from)
     Check(service.Buses.All(bus => Math.Abs(bus.Channel.ExternalGain - 0.2f) < 0.01f) &&
           service.Soundboard.ExternalGain == 1f,
         "bus : la voix baisse tous les bus, pas le soundboard");
+}
+
+
+// --- Bascule micro / source --------------------------------------------------
+{
+    var engineMixer = new VoiceStudio.Audio.Services.AudioMixerService();
+    var media = engineMixer.FindBus("media")!;
+    engineMixer.Microphone.Source = new ConstantSource(0.4f);
+    media.Channel.Source = new ConstantSource(0.2f);
+
+    Pull(engineMixer.Engine, 4800);
+    var both = Pull(engineMixer.Engine, 480);
+    Check(Math.Abs(both[^1] - 0.6f) < 1e-3, "bascule : au repos, micro et bus passent ensemble");
+
+    // La bascule coupe le bus tant qu'elle n'est pas enclenchée.
+    media.Channel.RouteGain = 0f;
+    Pull(engineMixer.Engine, 4800);
+    Check(Math.Abs(Pull(engineMixer.Engine, 480)[^1] - 0.4f) < 1e-3, "bascule : seul le micro passe");
+
+    // Enclenchée : le bus prend la place du micro.
+    media.Channel.RouteGain = 1f;
+    engineMixer.Microphone.ExternalGain = 0f;
+    Pull(engineMixer.Engine, 4800);
+    Check(Math.Abs(Pull(engineMixer.Engine, 480)[^1] - 0.2f) < 1e-3, "bascule : le bus remplace le micro");
+
+    // L'auto-ducking réécrit ExternalGain à chaque bloc : la bascule, elle, survit.
+    media.Channel.RouteGain = 0.5f;
+    Pull(engineMixer.Engine, 4800);
+    Check(media.Channel.ExternalGain == 1f &&
+          Math.Abs(Pull(engineMixer.Engine, 480)[^1] - 0.1f) < 1e-3,
+        "bascule : indépendante de l'auto-ducking");
 }
 
 Console.WriteLine(failures == 0 ? "\nTous les tests passent." : $"\n{failures} test(s) en échec.");

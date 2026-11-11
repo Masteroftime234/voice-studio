@@ -4,6 +4,108 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
         <StackPanel DataContext="{Binding Microphone}">
 
+            <!-- Avertissement micro virtuel -->
+            <Border Background="{StaticResource WarningSurfaceBrush}" CornerRadius="10" Padding="16,12"
+                    Margin="0,0,0,12"
+                    Visibility="{Binding HasMicrophoneWarning, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="{Binding MicrophoneWarning}" Foreground="{StaticResource WarningBrush}"
+                           FontSize="13" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Gain -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Volume du micro" Style="{StaticResource TitleText}" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0"
+                               Text="À monter si tes amis t'entendent trop bas sur Discord. Monte par petits pas : au-delà de +12 dB, le souffle du micro monte aussi." />
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="170" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Gain" Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" />
+                        <Slider Grid.Column="1" Style="{StaticResource VolumeSlider}" Minimum="-12" Maximum="24"
+                                SmallChange="1" LargeChange="3" Value="{Binding MicrophoneGainDb}" />
+                        <TextBlock Grid.Column="2" Text="{Binding MicrophoneGainText}"
+                                   Style="{StaticResource BodyText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Grid Margin="0,14,0,0"
+                          Visibility="{Binding HasWindowsInputLevel,
+                                       Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="170" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Niveau Windows" Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" />
+                        <Slider Grid.Column="1" Style="{StaticResource VolumeSlider}" Minimum="0" Maximum="100"
+                                Value="{Binding WindowsInputLevel}" />
+                        <TextBlock Grid.Column="2" Text="{Binding WindowsInputLevelText}"
+                                   Style="{StaticResource BodyText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource MutedText}" Margin="120,6,0,0"
+                               Text="Le volume d'entrée réglé dans Windows. S'il est bas, monte-le d'abord : c'est un vrai niveau, pas un rattrapage." />
+                </StackPanel>
+            </Border>
+
+            <!-- Bascule micro / source -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Envoyer une source à la place du micro"
+                                       Style="{StaticResource TitleText}" />
+                            <TextBlock Style="{StaticResource MutedText}" Margin="0,4,12,0"
+                                       Text="Une touche coupe ton micro et envoie à sa place la source choisie : musique, soundboard, son d'un jeu. Tant que la bascule est active, la source est silencieuse le reste du temps." />
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" Style="{StaticResource Switch}"
+                                      IsChecked="{Binding SwitchEnabled}" VerticalAlignment="Top" />
+                    </Grid>
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="260" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Source" Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Style="{StaticResource DarkCombo}"
+                                  ItemsSource="{Binding SwitchTargets}"
+                                  SelectedItem="{Binding SelectedSwitchTarget}" DisplayMemberPath="Name" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="120,14,0,0">
+                        <Button Content="Choisir la touche" Command="{Binding CaptureSwitchKeyCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,10,0" />
+                        <Button Content="Effacer" Command="{Binding ClearSwitchKeyCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,14,0" />
+                        <TextBlock Text="{Binding SwitchKeyText}" Style="{StaticResource BodyText}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="Appuie maintenant sur la touche de ton choix…" FontSize="12"
+                               Foreground="{StaticResource AccentBrush}" Margin="120,10,0,0"
+                               Visibility="{Binding IsCapturingSwitchKey,
+                                            Converter={StaticResource BoolToVisibility}}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="120,16,0,0">
+                        <ToggleButton Style="{StaticResource Switch}" IsChecked="{Binding SwitchHold}"
+                                      Margin="0,0,12,0" />
+                        <TextBlock Text="{Binding SwitchModeText}" Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" MaxWidth="420" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Suppression du bruit -->
             <Border Style="{StaticResource Card}">
                 <StackPanel>

@@ -10,7 +10,7 @@ public sealed class SoftLimiter
     private readonly float _releaseCoefficient;
     private float _gain = 1f;
 
-    public SoftLimiter(int sampleRate, float threshold = 0.89f, float releaseMilliseconds = 120f)
+    public SoftLimiter(int sampleRate, float threshold = 0.95f, float releaseMilliseconds = 250f)
     {
         _threshold = threshold;
         _releaseCoefficient = 1f - MathF.Exp(-1f / (sampleRate * releaseMilliseconds / 1000f));

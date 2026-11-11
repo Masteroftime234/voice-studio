@@ -15,6 +15,7 @@ public sealed class MixerChannel
     private float _volume = 1f;
     private bool _muted;
     private float _externalGain = 1f;
+    private float _routeGain = 1f;
     private float _currentGain;
     private float _peak;
 
@@ -63,6 +64,16 @@ public sealed class MixerChannel
         set => Volatile.Write(ref _externalGain, Math.Clamp(value, 0f, 1f));
     }
 
+    /// <summary>
+    /// Deuxième gain piloté par le moteur, indépendant de <see cref="ExternalGain"/> :
+    /// sert à la bascule micro / source, qui ne doit pas se marcher dessus avec l'auto-ducking.
+    /// </summary>
+    public float RouteGain
+    {
+        get => Volatile.Read(ref _routeGain);
+        set => Volatile.Write(ref _routeGain, Math.Clamp(value, 0f, 1f));
+    }
+
     /// <summary>Niveau crête après volume (ce qui part réellement dans le mix), linéaire.</summary>
     public float Peak => Volatile.Read(ref _peak);
 
@@ -86,7 +97,7 @@ public sealed class MixerChannel
         int read = source.Read(scratch, 0, count);
         if (read < count) Array.Clear(scratch, read, count - read);
 
-        float targetGain = Muted ? 0f : Volume * ExternalGain;
+        float targetGain = Muted ? 0f : Volume * ExternalGain * RouteGain;
         float blockPeak = 0f;
         float gain = _currentGain;
         float step = frames > 0 ? (targetGain - gain) / frames : 0f;

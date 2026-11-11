@@ -48,6 +48,10 @@ public sealed class AppSettings
     public Dictionary<string, AppLevel> BusLevels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     // --- Micro ---
+
+    /// <summary>Gain appliqué au micro, en décibels (0 = niveau d'origine).</summary>
+    public double MicrophoneGainDb { get; set; }
+
     /// <summary>
     /// Désactivée par défaut : sans effet ni nettoyage, le micro part vers Discord
     /// exactement tel qu'il est capté.
@@ -59,6 +63,15 @@ public sealed class AppSettings
     public bool PushToTalkEnabled { get; set; }
     public int PushToTalkVirtualKey { get; set; }
     public string PushToTalkName { get; set; } = "";
+
+    // --- Bascule micro / source ---
+    public bool SwitchEnabled { get; set; }
+    public string SwitchTargetId { get; set; } = "media";
+    public int SwitchVirtualKey { get; set; }
+    public string SwitchKeyName { get; set; } = "";
+
+    /// <summary>Vrai : la touche se maintient. Faux : elle bascule à chaque appui.</summary>
+    public bool SwitchHold { get; set; } = true;
 
     // --- Auto-ducking ---
     public bool DuckingEnabled { get; set; }

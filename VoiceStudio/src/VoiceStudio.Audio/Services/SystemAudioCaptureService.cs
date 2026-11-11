@@ -38,6 +38,19 @@ public sealed class SystemAudioCaptureService : IDisposable
     public static readonly string[] DefaultExcludedApps =
         ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
 
+    /// <summary>
+    /// Logiciels de routage audio, toujours exclus quelle que soit la liste de l'utilisateur :
+    /// ils transportent déjà le micro et le reste du système, donc les capturer reviendrait
+    /// à envoyer deux fois la même chose, micro compris.
+    /// </summary>
+    public static readonly string[] AlwaysExcludedApps =
+    [
+        "SteelSeriesSonar", "SteelSeriesGGClient", "SteelSeriesEngine3", "SteelSeriesGG",
+        "VoiceMeeter", "voicemeeter8x64", "voicemeeter8", "voicemeeterpro",
+        "VBCABLE_ControlPanel", "VoiceStudio", "Equalizer APO", "EqualizerAPO",
+        "nahimicsvc32", "nahimicsvc64", "NahimicService", "Nahimic3"
+    ];
+
     private readonly object _gate = new();
     private readonly ManualResetEventSlim _wake = new(false);
     private readonly int _ownProcessId = Environment.ProcessId;
@@ -365,6 +378,8 @@ public sealed class SystemAudioCaptureService : IDisposable
             string? name = NameOf(current);
             if (name == null) return depth == 0; // processus disparu
             foreach (string excludedName in excluded)
+                if (string.Equals(name, excludedName, StringComparison.OrdinalIgnoreCase)) return true;
+            foreach (string excludedName in AlwaysExcludedApps)
                 if (string.Equals(name, excludedName, StringComparison.OrdinalIgnoreCase)) return true;
             if (!parents.TryGetValue(current, out int parent) || parent == current) break;
             current = parent;

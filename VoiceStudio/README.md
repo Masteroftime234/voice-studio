@@ -16,7 +16,10 @@ Cinq pages, en onglets en haut de la fenêtre.
 
 **Voix** — effets vocaux appliqués à ta voix : hauteur (grave/aiguë sans changer la vitesse), filtre, robot, distorsion, radio, téléphone, écho, réverbération. Combinables, avec 10 presets fournis et tes propres presets enregistrables.
 
-**Micro** — le nettoyage du son :
+**Micro** — le volume et le nettoyage du son :
+- niveau d'entrée Windows et gain logiciel de -12 à +24 dB, si on t'entend trop bas sur Discord ;
+- avertissement si le micro choisi est un périphérique virtuel (SteelSeries Sonar, VoiceMeeter…), cause fréquente de craquements ;
+- bascule micro / source : une touche coupe le micro et envoie à sa place un bus ou le soundboard ;
 - suppression du bruit de fond (souffle, ventilateur, bourdonnement), à utiliser à la place de Krisp — **désactivée par défaut** : sans elle ni effet vocal, la voix part vers Discord exactement telle qu'elle est captée ;
 - noise gate, qui ferme le micro entre deux phrases ;
 - push-to-talk, avec une touche qui marche même hors de la fenêtre ;
@@ -85,7 +88,7 @@ Pour que le micro s'appelle « Voice Studio Virtual Mic » dans Discord : Param�
 | Partie | Vérifié |
 |---|---|
 | Moteur audio (`VoiceStudio.Audio`) | Compilé sans erreur contre le code source de NAudio 2.2.1 |
-| Cœur du moteur (mixage, bus, limiteur, effets, suppression de bruit, noise gate, ducking, push-to-talk, soundboard) | 76 tests automatiques, tous passent |
+| Cœur du moteur (mixage, bus, bascule, limiteur, gain, effets, suppression de bruit, noise gate, ducking, push-to-talk, soundboard) | 82 tests automatiques, tous passent |
 | ViewModels et réglages | Compilés sans erreur |
 | Fenêtre WPF (XAML, `App.xaml.cs`, `MainWindow.xaml.cs`) | **Non compilée** : WPF ne se compile que sous Windows |
 | Capture réelle (micro, applications), sortie VB-CABLE, Discord | **Non testée** : demande un PC Windows avec du son |

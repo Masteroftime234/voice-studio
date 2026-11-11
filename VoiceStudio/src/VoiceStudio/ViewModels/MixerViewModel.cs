@@ -46,6 +46,11 @@ public sealed class MixerViewModel : ObservableObject
                 bus.Volume = level.Volume;
                 bus.IsMuted = level.Muted;
             }
+            else
+            {
+                // Au premier lancement, les sons du PC passent sous la voix.
+                bus.Volume = 70;
+            }
             Buses.Add(bus);
         }
         engine.Mixer.Engine.MasterVolume = (float)(settings.MasterVolume / 100.0);

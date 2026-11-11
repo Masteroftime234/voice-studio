@@ -50,14 +50,16 @@ public partial class MainWindow : Window
 
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         bool capturingPushToTalk = model.Microphone.IsCapturingKey;
+        bool capturingSwitch = model.Microphone.IsCapturingSwitchKey;
         var capturingSound = model.Soundboard.Sounds.FirstOrDefault(sound => sound.IsCapturingKey);
-        if (!capturingPushToTalk && capturingSound == null) return;
+        if (!capturingPushToTalk && !capturingSwitch && capturingSound == null) return;
 
         e.Handled = true;
 
         if (key == Key.Escape)
         {
             model.Microphone.IsCapturingKey = false;
+            model.Microphone.IsCapturingSwitchKey = false;
             if (capturingSound != null) capturingSound.IsCapturingKey = false;
             return;
         }
@@ -66,6 +68,7 @@ public partial class MainWindow : Window
         string name = key.ToString();
 
         if (capturingPushToTalk) model.Microphone.SetPushToTalkKey(virtualKey, name);
+        else if (capturingSwitch) model.Microphone.SetSwitchKey(virtualKey, name);
         else if (capturingSound != null) model.Soundboard.SetHotkey(capturingSound, virtualKey, name);
     }
 }

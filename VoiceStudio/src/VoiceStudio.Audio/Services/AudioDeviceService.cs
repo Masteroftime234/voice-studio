@@ -43,6 +43,52 @@ public sealed class AudioDeviceService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Niveau d'entrée réglé dans Windows pour ce micro, de 0 à 1. Null si inaccessible.
+    /// C'est le même réglage que « Paramètres → Son → Entrée → Volume ».
+    /// </summary>
+    public float? GetInputLevel(string deviceId)
+    {
+        try
+        {
+            using var device = OpenDevice(deviceId);
+            return device?.AudioEndpointVolume.MasterVolumeLevelScalar;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Change le niveau d'entrée Windows de ce micro. Retourne false si impossible.</summary>
+    public bool SetInputLevel(string deviceId, float level)
+    {
+        try
+        {
+            using var device = OpenDevice(deviceId);
+            if (device == null) return false;
+            device.AudioEndpointVolume.MasterVolumeLevelScalar = Math.Clamp(level, 0f, 1f);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Vrai si ce micro est un périphérique virtuel créé par un logiciel de routage
+    /// (SteelSeries Sonar, VoiceMeeter, VB-CABLE…). Ces entrées ajoutent un étage de
+    /// traitement et leur horloge est moins régulière : les craquements y sont fréquents.
+    /// </summary>
+    public static bool LooksLikeVirtualInput(string name)
+    {
+        string[] markers = ["sonar", "voicemeeter", "vb-audio", "cable output", "virtual", "nahimic"];
+        foreach (string marker in markers)
+            if (name.Contains(marker, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
     public static bool LooksLikeVirtualCable(string name) =>
         name.Contains("CABLE Input", StringComparison.OrdinalIgnoreCase) ||
         name.Contains("VB-Audio", StringComparison.OrdinalIgnoreCase) ||

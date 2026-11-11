@@ -53,6 +53,12 @@ public sealed class MainViewModel : ObservableObject
             SettingsPage.RefreshMonitors();
         });
 
+        Mixer.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MixerViewModel.SelectedMicrophone)) UpdateSelectedMicrophone();
+        };
+        UpdateSelectedMicrophone();
+
         _keys.KeyStateChanged += OnKeyStateChanged;
         RefreshHotkeys();
     }
@@ -156,13 +162,24 @@ public sealed class MainViewModel : ObservableObject
         var keys = new List<int>(Soundboard.HotkeyVirtualKeys);
         if (_settings.PushToTalkEnabled && _settings.PushToTalkVirtualKey != 0)
             keys.Add(_settings.PushToTalkVirtualKey);
+        if (_settings.SwitchEnabled && _settings.SwitchVirtualKey != 0)
+            keys.Add(_settings.SwitchVirtualKey);
         _keys.WatchOnly(keys);
     }
+
+    private void UpdateSelectedMicrophone() =>
+        Microphone.SetMicrophone(Mixer.SelectedMicrophone?.Id, Mixer.SelectedMicrophone?.Name);
 
     private void OnKeyStateChanged(int virtualKey, bool down)
     {
         if (_settings.PushToTalkEnabled && virtualKey == _settings.PushToTalkVirtualKey)
             _engine.PushToTalkPressed = down;
+
+        if (_settings.SwitchEnabled && virtualKey == _settings.SwitchVirtualKey)
+        {
+            if (_settings.SwitchHold) _engine.SwitchActive = down;
+            else if (down) _engine.SwitchActive = !_engine.SwitchActive;
+        }
 
         if (!down) return;
         var sound = Soundboard.FindByHotkey(virtualKey);

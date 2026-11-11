@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using VoiceStudio.Audio;
+using VoiceStudio.Audio.Services;
 using VoiceStudio.Helpers;
 using VoiceStudio.Settings;
 
@@ -12,7 +14,12 @@ public sealed class MicrophoneViewModel : ObservableObject
     private readonly Action _applyMonitor;
     private readonly Action _hotkeysChanged;
     private bool _isCapturingKey;
+    private bool _isCapturingSwitchKey;
+    private string? _currentMicrophoneId;
+    private SwitchTarget? _switchTarget;
     private long _dropouts;
+    private double _windowsLevel = -1;
+    private string? _micWarning;
 
     public MicrophoneViewModel(AudioEngine engine, AppSettings settings, Action applyMonitor, Action hotkeysChanged)
     {
@@ -20,6 +27,8 @@ public sealed class MicrophoneViewModel : ObservableObject
         _settings = settings;
         _applyMonitor = applyMonitor;
         _hotkeysChanged = hotkeysChanged;
+
+        engine.VoiceEffects.Chain.Gain = (float)Math.Pow(10, settings.MicrophoneGainDb / 20.0);
 
         var suppressor = engine.VoiceEffects.Chain.NoiseSuppression;
         suppressor.Enabled = settings.NoiseSuppressionEnabled;
@@ -39,8 +48,17 @@ public sealed class MicrophoneViewModel : ObservableObject
         ducker.AttackMs = (float)settings.DuckingAttackMs;
         ducker.ReleaseMs = (float)settings.DuckingReleaseMs;
 
+        engine.SwitchEnabled = settings.SwitchEnabled;
+        engine.SwitchTargetId = settings.SwitchTargetId;
+        foreach (var bus in engine.Buses) SwitchTargets.Add(new SwitchTarget(bus.Id, bus.Name));
+        SwitchTargets.Add(new SwitchTarget("soundboard", "Soundboard"));
+        _switchTarget = SwitchTargets.FirstOrDefault(target => target.Id == settings.SwitchTargetId)
+                        ?? SwitchTargets[0];
+
         CaptureKeyCommand = new RelayCommand(() => IsCapturingKey = true);
         ClearKeyCommand = new RelayCommand(() => SetPushToTalkKey(0, ""));
+        CaptureSwitchKeyCommand = new RelayCommand(() => IsCapturingSwitchKey = true);
+        ClearSwitchKeyCommand = new RelayCommand(() => SetSwitchKey(0, ""));
     }
 
     public RelayCommand CaptureKeyCommand { get; }
@@ -66,6 +84,150 @@ public sealed class MicrophoneViewModel : ObservableObject
 
     public void RefreshDropouts() => Dropouts = _engine.Dropouts;
     public RelayCommand ClearKeyCommand { get; }
+    public RelayCommand CaptureSwitchKeyCommand { get; }
+    public RelayCommand ClearSwitchKeyCommand { get; }
+
+    // --- Niveau d'entrée Windows ---
+
+    /// <summary>
+    /// Volume d'entrée réglé dans Windows pour le micro choisi, en pourcentage.
+    /// S'il est bas, aucun gain logiciel ne rattrapera proprement : c'est ici qu'il faut monter.
+    /// </summary>
+    public double WindowsInputLevel
+    {
+        get => _windowsLevel < 0 ? 100 : _windowsLevel;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), 0, 100);
+            if (Math.Abs(WindowsInputLevel - clamped) < 0.5) return;
+            _windowsLevel = clamped;
+            if (_currentMicrophoneId != null)
+                _engine.Devices.SetInputLevel(_currentMicrophoneId, (float)(clamped / 100.0));
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(WindowsInputLevelText));
+        }
+    }
+
+    public string WindowsInputLevelText => $"{WindowsInputLevel:0} %";
+
+    public bool HasWindowsInputLevel => _windowsLevel >= 0;
+
+    /// <summary>Avertissement quand le micro choisi est un périphérique virtuel.</summary>
+    public string? MicrophoneWarning
+    {
+        get => _micWarning;
+        private set
+        {
+            if (!SetProperty(ref _micWarning, value)) return;
+            OnPropertyChanged(nameof(HasMicrophoneWarning));
+        }
+    }
+
+    public bool HasMicrophoneWarning => !string.IsNullOrEmpty(MicrophoneWarning);
+
+    /// <summary>Appelé quand le micro sélectionné change.</summary>
+    public void SetMicrophone(string? deviceId, string? deviceName)
+    {
+        _currentMicrophoneId = deviceId;
+        float? level = deviceId == null ? null : _engine.Devices.GetInputLevel(deviceId);
+        _windowsLevel = level.HasValue ? Math.Round(level.Value * 100.0) : -1;
+        OnPropertyChanged(nameof(WindowsInputLevel));
+        OnPropertyChanged(nameof(WindowsInputLevelText));
+        OnPropertyChanged(nameof(HasWindowsInputLevel));
+
+        MicrophoneWarning = deviceName != null && AudioDeviceService.LooksLikeVirtualInput(deviceName)
+            ? "Ce micro est un périphérique virtuel créé par un logiciel de routage. Il ajoute un étage "
+              + "de traitement et son horloge est moins régulière : c'est une cause fréquente de craquements. "
+              + "Choisis plutôt ton micro physique dans la page Mixer."
+            : null;
+    }
+
+    // --- Bascule micro / source ---
+
+    public ObservableCollection<SwitchTarget> SwitchTargets { get; } = [];
+
+    /// <summary>Remplacer le micro par une autre source en appuyant sur une touche.</summary>
+    public bool SwitchEnabled
+    {
+        get => _engine.SwitchEnabled;
+        set
+        {
+            _engine.SwitchEnabled = value;
+            _settings.SwitchEnabled = value;
+            OnPropertyChanged();
+            _hotkeysChanged();
+        }
+    }
+
+    public SwitchTarget? SelectedSwitchTarget
+    {
+        get => _switchTarget;
+        set
+        {
+            if (!SetProperty(ref _switchTarget, value) || value == null) return;
+            _settings.SwitchTargetId = value.Id;
+            _engine.SwitchTargetId = value.Id;
+        }
+    }
+
+    /// <summary>Vrai : il faut maintenir la touche. Faux : un appui bascule, un autre revient.</summary>
+    public bool SwitchHold
+    {
+        get => _settings.SwitchHold;
+        set
+        {
+            _settings.SwitchHold = value;
+            if (value) _engine.SwitchActive = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SwitchModeText));
+        }
+    }
+
+    public string SwitchModeText => SwitchHold
+        ? "Maintiens la touche pour envoyer la source à la place du micro."
+        : "Un appui envoie la source, un autre revient au micro.";
+
+    public int SwitchVirtualKey => _settings.SwitchVirtualKey;
+
+    public string SwitchKeyText => _settings.SwitchKeyName.Length > 0
+        ? _settings.SwitchKeyName
+        : "Aucune touche";
+
+    public bool IsCapturingSwitchKey
+    {
+        get => _isCapturingSwitchKey;
+        set => SetProperty(ref _isCapturingSwitchKey, value);
+    }
+
+    public void SetSwitchKey(int virtualKey, string name)
+    {
+        _settings.SwitchVirtualKey = virtualKey;
+        _settings.SwitchKeyName = name;
+        IsCapturingSwitchKey = false;
+        OnPropertyChanged(nameof(SwitchKeyText));
+        _hotkeysChanged();
+    }
+
+    // --- Gain ---
+
+    /// <summary>Gain du micro en décibels : à monter si on t'entend trop bas sur Discord.</summary>
+    public double MicrophoneGainDb
+    {
+        get => _settings.MicrophoneGainDb;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), -12, 24);
+            if (Math.Abs(_settings.MicrophoneGainDb - clamped) < 0.01) return;
+            _settings.MicrophoneGainDb = clamped;
+            _engine.VoiceEffects.Chain.Gain = (float)Math.Pow(10, clamped / 20.0);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(MicrophoneGainText));
+        }
+    }
+
+    public string MicrophoneGainText => MicrophoneGainDb == 0
+        ? "0 dB — niveau d'origine"
+        : $"{MicrophoneGainDb:+0;-0} dB";
 
     // --- Suppression du bruit ---
 
@@ -242,4 +404,11 @@ public sealed class MicrophoneViewModel : ObservableObject
     }
 
     public string DuckingReleaseText => $"{DuckingReleaseMs:0} ms";
+}
+
+
+/// <summary>Une source qui peut remplacer le micro : un bus, ou le soundboard.</summary>
+public sealed record SwitchTarget(string Id, string Name)
+{
+    public override string ToString() => Name;
 }

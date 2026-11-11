@@ -36,6 +36,9 @@ public sealed class AudioEngine : IDisposable
     private readonly ConcurrentDictionary<string, string> _busByApp = new(StringComparer.OrdinalIgnoreCase);
     private bool _pushToTalkEnabled;
     private bool _pushToTalkPressed;
+    private bool _switchEnabled;
+    private bool _switchActive;
+    private string? _switchTargetId;
 
     public AudioEngine()
     {
@@ -155,8 +158,61 @@ public sealed class AudioEngine : IDisposable
             bus.SetSources(sources.Where(source => BusOf(source.Name) == bus.Id).ToArray());
     }
 
-    private void UpdateMicrophoneGate() =>
-        Mixer.Microphone.ExternalGain = !_pushToTalkEnabled || _pushToTalkPressed ? 1f : 0f;
+    /// <summary>
+    /// Bascule micro / source : quand elle est active, la source choisie passe à la place du micro.
+    /// Sert à faire entendre une musique ou un extrait sans sa propre voix par-dessus.
+    /// </summary>
+    public bool SwitchEnabled
+    {
+        get => _switchEnabled;
+        set
+        {
+            _switchEnabled = value;
+            UpdateMicrophoneGate();
+        }
+    }
+
+    /// <summary>Identifiant de la source qui remplace le micro : un bus, ou « soundboard ».</summary>
+    public string? SwitchTargetId
+    {
+        get => _switchTargetId;
+        set
+        {
+            _switchTargetId = value;
+            UpdateMicrophoneGate();
+        }
+    }
+
+    /// <summary>État de la touche de bascule (fourni par l'interface).</summary>
+    public bool SwitchActive
+    {
+        get => _switchActive;
+        set
+        {
+            _switchActive = value;
+            UpdateMicrophoneGate();
+        }
+    }
+
+    /// <summary>Tranche visée par la bascule, ou null si elle n'est pas configurée.</summary>
+    private MixerChannel? SwitchTarget =>
+        _switchTargetId == null ? null
+        : string.Equals(_switchTargetId, "soundboard", StringComparison.OrdinalIgnoreCase) ? Mixer.Soundboard
+        : Mixer.FindBus(_switchTargetId)?.Channel;
+
+    private void UpdateMicrophoneGate()
+    {
+        bool pushToTalkOpen = !_pushToTalkEnabled || _pushToTalkPressed;
+        bool switched = _switchEnabled && _switchActive && SwitchTarget != null;
+
+        Mixer.Microphone.ExternalGain = pushToTalkOpen && !switched ? 1f : 0f;
+
+        var target = SwitchTarget;
+        if (target == null) return;
+
+        // Hors bascule, la source choisie se tait : on n'entend que le micro.
+        target.RouteGain = !_switchEnabled || switched ? 1f : 0f;
+    }
 
     public void Start(string microphoneId, string outputId, int latencyMilliseconds) =>
         Start(new EngineOptions(microphoneId, outputId) { OutputLatencyMs = latencyMilliseconds });
@@ -251,6 +307,8 @@ public sealed class AudioEngine : IDisposable
     private void StopCore()
     {
         IsRunning = false;
+        foreach (var bus in Mixer.Buses) bus.Channel.RouteGain = 1f;
+        Mixer.Soundboard.RouteGain = 1f;
         _virtualMicrophone.Stop();
         Monitor.Stop();
         VoiceEffects.Chain.Source = null;

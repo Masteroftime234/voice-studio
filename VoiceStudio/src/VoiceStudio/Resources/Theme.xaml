@@ -496,7 +496,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
-                    <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True"
+                    <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="False"
                            HorizontalAlignment="Center">
                         <Track.DecreaseRepeatButton>
                             <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource VerticalTrackButton}"

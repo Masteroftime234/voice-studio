@@ -35,6 +35,9 @@
                     <TextBlock Style="{StaticResource MutedText}" Margin="0,6,0,0" MaxWidth="520"
                                HorizontalAlignment="Left"
                                Text="Leur son n'est jamais envoyé dans le micro. Garde Discord dans la liste, sinon tes amis s'entendraient en écho. Noms de processus séparés par des virgules." />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0" MaxWidth="520"
+                               HorizontalAlignment="Left"
+                               Text="Les logiciels de routage audio (SteelSeries Sonar, VoiceMeeter, Nahimic, Equalizer APO) sont toujours exclus, même absents de cette liste : ils transportent déjà ton micro, donc les capturer l'enverrait une deuxième fois." />
                 </StackPanel>
             </Border>
 

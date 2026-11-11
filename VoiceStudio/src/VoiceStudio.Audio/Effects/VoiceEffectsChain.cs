@@ -12,6 +12,8 @@ public sealed class VoiceEffectsChain : ISampleProvider
     private readonly bool[] _wasActive;
     private ISampleProvider? _source;
     private float[] _mono = new float[AudioConstants.SampleRate / 5];
+    private float _gain = 1f;
+    private float _currentGain = 1f;
     private bool _effectsEnabled = true;
     private bool _gateWasEnabled;
     private bool _suppressorWasEnabled;
@@ -45,6 +47,16 @@ public sealed class VoiceEffectsChain : ISampleProvider
     /// <summary>Les effets, dans l'ordre d'application.</summary>
     public IReadOnlyList<VoiceEffect> Effects => _effects;
 
+    /// <summary>
+    /// Gain appliqué au micro avant tout traitement : 1 = niveau d'origine, 4 = +12 dB.
+    /// Sert aux micros trop discrets, que les correspondants entendent à peine.
+    /// </summary>
+    public float Gain
+    {
+        get => Volatile.Read(ref _gain);
+        set => Volatile.Write(ref _gain, Math.Clamp(value, 0.25f, 16f));
+    }
+
     /// <summary>Interrupteur général des effets (le noise gate reste indépendant).</summary>
     public bool EffectsEnabled
     {
@@ -77,6 +89,19 @@ public sealed class VoiceEffectsChain : ISampleProvider
 
         int read = source.Read(buffer, offset, count);
         if (read < count) Array.Clear(buffer, offset + read, count - read);
+
+        float targetGain = Gain;
+        if (targetGain != 1f || _currentGain != 1f)
+        {
+            float gain = _currentGain;
+            float step = count > 0 ? (targetGain - gain) / count : 0f;
+            for (int i = offset; i < offset + count; i++)
+            {
+                gain += step;
+                buffer[i] *= gain;
+            }
+            _currentGain = targetGain;
+        }
 
         bool suppressorEnabled = NoiseSuppression.Enabled;
         if (suppressorEnabled && !_suppressorWasEnabled) NoiseSuppression.Reset();
