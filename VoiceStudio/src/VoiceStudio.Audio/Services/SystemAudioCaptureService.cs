@@ -48,7 +48,8 @@ public sealed class SystemAudioCaptureService : IDisposable
         "SteelSeriesSonar", "SteelSeriesGGClient", "SteelSeriesEngine3", "SteelSeriesGG",
         "VoiceMeeter", "voicemeeter8x64", "voicemeeter8", "voicemeeterpro",
         "VBCABLE_ControlPanel", "VoiceStudio", "Equalizer APO", "EqualizerAPO",
-        "nahimicsvc32", "nahimicsvc64", "NahimicService", "Nahimic3"
+        "nahimicsvc32", "nahimicsvc64", "NahimicService", "Nahimic3",
+        "audiodg", "AudioSrv", "svchost", "dwm", "SearchFilterHost", "SearchProtocolHost"
     ];
 
     private readonly object _gate = new();

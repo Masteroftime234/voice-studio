@@ -16,11 +16,11 @@ public sealed class CaptureSourcePipeline
     private readonly RingBufferSampleProvider _ringProvider;
     private float[] _convertBuffer;
 
-    public CaptureSourcePipeline(int sampleRate, int channels)
+    public CaptureSourcePipeline(int sampleRate, int channels, int prefillMilliseconds = 25)
     {
         var nativeFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
         _ring = new AudioRingBuffer(sampleRate * channels); // 1 seconde
-        _ringProvider = new RingBufferSampleProvider(_ring, nativeFormat);
+        _ringProvider = new RingBufferSampleProvider(_ring, nativeFormat, prefillMilliseconds);
         _convertBuffer = new float[sampleRate * channels / 4];
 
         ISampleProvider chain = new StereoAdapterSampleProvider(_ringProvider);

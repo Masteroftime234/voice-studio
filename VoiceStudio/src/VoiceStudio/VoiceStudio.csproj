@@ -10,7 +10,13 @@
     <RootNamespace>VoiceStudio</RootNamespace>
     <AssemblyName>VoiceStudio</AssemblyName>
     <Version>0.1.0</Version>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- L'icône sert à la fois de logo de fichier, de fenêtre et de barre des tâches. -->
+    <Resource Include="Resources\app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\VoiceStudio.Audio\VoiceStudio.Audio.csproj" />

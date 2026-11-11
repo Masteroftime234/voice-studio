@@ -10,7 +10,9 @@ Applications du PC (sauf Discord) ───┘     (VB-CABLE, le câble virtuel)
 
 ## Ce que fait l'application
 
-Cinq pages, en onglets en haut de la fenêtre.
+Six pages, en onglets en haut de la fenêtre.
+
+**Simple** — la page d'accueil, pour ne rien avoir à comprendre : tes deux périphériques, trois volumes (ta voix, les sons du PC, le général) et le réglage de Discord. Les autres onglets ne servent qu'au détail.
 
 **Mixer** — une table de mixage à tranches verticales : volume général, micro, soundboard, puis quatre bus — **Jeu, Chat, Média, Autres**. Chaque application qui joue vraiment du son apparaît sous forme d'étiquette dans un bus et se **fait glisser d'un bus à l'autre** à la souris ; le volume se règle au fader du bus. Une application qui garde un flux ouvert sans rien jouer (Steam, les utilitaires de carte son) n'apparaît pas ; une application qui se tait disparaît au bout de 30 secondes. Le classement de départ se fait sur le nom (Spotify et les navigateurs vont dans Média) ; ton rangement est retenu d'une session à l'autre. Une colonne « Hors du mix » montre les applications qui jouent du son mais restent exclues, Discord en tête.
 
@@ -110,6 +112,7 @@ src/VoiceStudio.Audio/          Moteur audio — aucune dépendance à l'interfa
                                 AudioMixerService, VirtualMicrophoneService,
                                 VoiceEffectsService, SoundboardService, MonitorService
 src/VoiceStudio/                Application WPF (MVVM)
+  Resources/app.ico             Logo : icône du fichier, de la fenêtre et de l'installateur
   Views/                        Les cinq pages (Mixer, Voix, Micro, Soundboard, Réglages)
   ViewModels/  Settings/  Helpers/  Resources/Theme.xaml  MainWindow.xaml
 tests/VoiceStudio.SelfTest/     Tests du moteur

@@ -57,6 +57,11 @@ public sealed class MicrophoneViewModel : ObservableObject
 
         CaptureKeyCommand = new RelayCommand(() => IsCapturingKey = true);
         ClearKeyCommand = new RelayCommand(() => SetPushToTalkKey(0, ""));
+        DismissWarningCommand = new RelayCommand(() =>
+        {
+            _settings.MicrophoneWarningDismissed = true;
+            MicrophoneWarning = null;
+        });
         CaptureSwitchKeyCommand = new RelayCommand(() => IsCapturingSwitchKey = true);
         ClearSwitchKeyCommand = new RelayCommand(() => SetSwitchKey(0, ""));
     }
@@ -78,12 +83,13 @@ public sealed class MicrophoneViewModel : ObservableObject
     public bool HasDropouts => Dropouts > 0;
 
     public string DropoutText => Dropouts == 0
-        ? "Aucune coupure audio."
-        : $"{Dropouts} coupure(s) audio depuis le démarrage. Si le nombre monte pendant que tu parles, "
-          + "augmente la latence de sortie dans Réglages.";
+        ? "Coupures audio : aucune. Le son circule sans à-coup."
+        : $"Coupures audio : {Dropouts}. Si ce nombre monte pendant que tu parles, c'est le transport du "
+          + "son qui décroche : augmente la latence de sortie dans Réglages.";
 
     public void RefreshDropouts() => Dropouts = _engine.Dropouts;
     public RelayCommand ClearKeyCommand { get; }
+    public RelayCommand DismissWarningCommand { get; }
     public RelayCommand CaptureSwitchKeyCommand { get; }
     public RelayCommand ClearSwitchKeyCommand { get; }
 
@@ -135,11 +141,14 @@ public sealed class MicrophoneViewModel : ObservableObject
         OnPropertyChanged(nameof(WindowsInputLevelText));
         OnPropertyChanged(nameof(HasWindowsInputLevel));
 
-        MicrophoneWarning = deviceName != null && AudioDeviceService.LooksLikeVirtualInput(deviceName)
-            ? "Ce micro est un périphérique virtuel créé par un logiciel de routage. Il ajoute un étage "
-              + "de traitement et son horloge est moins régulière : c'est une cause fréquente de craquements. "
-              + "Choisis plutôt ton micro physique dans la page Mixer."
-            : null;
+        MicrophoneWarning =
+            !_settings.MicrophoneWarningDismissed && deviceName != null &&
+            AudioDeviceService.LooksLikeVirtualInput(deviceName)
+                ? "Ce micro vient d'un logiciel de routage, pas de la carte son. C'est parfait si tu veux "
+                  + "garder son traitement — Voice Studio ne le remplace pas et lui laisse déjà plus de marge. "
+                  + "Mais si tu entends des craquements, essaie ton micro physique pour comparer : ces entrées "
+                  + "ont une horloge moins régulière."
+                : null;
     }
 
     // --- Bascule micro / source ---

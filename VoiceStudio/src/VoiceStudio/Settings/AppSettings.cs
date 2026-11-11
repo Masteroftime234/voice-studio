@@ -64,6 +64,9 @@ public sealed class AppSettings
     public int PushToTalkVirtualKey { get; set; }
     public string PushToTalkName { get; set; } = "";
 
+    /// <summary>L'avertissement sur les micros virtuels a été masqué par l'utilisateur.</summary>
+    public bool MicrophoneWarningDismissed { get; set; }
+
     // --- Bascule micro / source ---
     public bool SwitchEnabled { get; set; }
     public string SwitchTargetId { get; set; } = "media";

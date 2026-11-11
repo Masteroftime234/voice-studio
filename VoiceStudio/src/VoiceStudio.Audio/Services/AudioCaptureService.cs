@@ -37,7 +37,10 @@ public sealed class AudioCaptureService : IDisposable
             {
                 var format = capture.WaveFormat;
                 _sampleKind = SampleConverter.GetSampleKind(format);
-                _pipeline = new CaptureSourcePipeline(format.SampleRate, format.Channels);
+                // Coussin proportionnel au tampon du périphérique : les cartes son virtuelles
+                // (SteelSeries Sonar, VoiceMeeter…) livrent par à-coups et demandent plus de marge.
+                int prefill = Math.Max(25, bufferMilliseconds + 10);
+                _pipeline = new CaptureSourcePipeline(format.SampleRate, format.Channels, prefill);
                 DeviceFormat = format;
 
                 capture.DataAvailable += OnDataAvailable;

@@ -1,0 +1,159 @@
+<UserControl x:Class="VoiceStudio.Views.SimpleView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+
+        <!-- Une grosse ligne de réglage : nom, curseur, pourcentage, indicateur -->
+        <Style x:Key="BigRow" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
+        <StackPanel>
+
+            <!-- Périphériques -->
+            <Border Style="{StaticResource Card}" DataContext="{Binding Mixer}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="1.  Ton micro" Style="{StaticResource FieldLabel}" />
+                        <ComboBox Style="{StaticResource DarkCombo}" ItemsSource="{Binding Microphones}"
+                                  SelectedItem="{Binding SelectedMicrophone}" DisplayMemberPath="Name" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="2.  Sortie vers Discord — choisis « CABLE Input »"
+                                   Style="{StaticResource FieldLabel}" />
+                        <ComboBox Style="{StaticResource DarkCombo}" ItemsSource="{Binding Outputs}"
+                                  SelectedItem="{Binding SelectedOutput}" DisplayMemberPath="Name" />
+                    </StackPanel>
+
+                    <Button Grid.Column="4" Content="Actualiser" Command="{Binding RefreshDevicesCommand}"
+                            Style="{StaticResource SecondaryButton}" VerticalAlignment="Bottom" Height="36" />
+                </Grid>
+            </Border>
+
+            <!-- Trois volumes -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="3.  LES TROIS VOLUMES" Style="{StaticResource SectionTitle}" />
+
+                    <!-- Micro -->
+                    <Grid Style="{StaticResource BigRow}" DataContext="{Binding Mixer.Microphone}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition Width="104" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Ta voix" Style="{StaticResource TitleText}" />
+                            <TextBlock Text="Ce que tes amis entendent de toi" Style="{StaticResource MutedText}" />
+                        </StackPanel>
+                        <Slider Grid.Row="0" Grid.Column="1" Value="{Binding Volume}"
+                                Style="{StaticResource VolumeSlider}" Margin="4,0,10,0" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding VolumeText}"
+                                   Style="{StaticResource BodyText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <ToggleButton Grid.Row="0" Grid.Column="3" IsChecked="{Binding IsMuted}"
+                                      Style="{StaticResource MuteToggle}" HorizontalAlignment="Right" />
+                        <ProgressBar Grid.Row="1" Grid.ColumnSpan="4" Value="{Binding Level, Mode=OneWay}"
+                                     Style="{StaticResource LevelMeter}" Margin="0,10,0,0" />
+                    </Grid>
+
+                    <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,18" />
+
+                    <!-- Sons du PC -->
+                    <Grid Style="{StaticResource BigRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition Width="104" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Sons du PC" Style="{StaticResource TitleText}" />
+                            <TextBlock Text="Musique, vidéos, jeux" Style="{StaticResource MutedText}" />
+                        </StackPanel>
+                        <Slider Grid.Row="0" Grid.Column="1" Value="{Binding Mixer.AppsVolume}"
+                                Style="{StaticResource VolumeSlider}" Margin="4,0,10,0" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Mixer.AppsVolumeText}"
+                                   Style="{StaticResource BodyText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <ProgressBar Grid.Row="1" Grid.ColumnSpan="4"
+                                     Value="{Binding Mixer.AppsLevel, Mode=OneWay}"
+                                     Style="{StaticResource LevelMeter}" Margin="0,10,0,0" />
+                        <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding Mixer.SystemAudioStatus}"
+                                   Style="{StaticResource MutedText}" Margin="0,8,0,0" />
+                    </Grid>
+
+                    <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,18" />
+
+                    <!-- Général -->
+                    <Grid Style="{StaticResource BigRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition Width="104" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Volume général" Style="{StaticResource TitleText}" />
+                            <TextBlock Text="Tout ce qui part vers Discord" Style="{StaticResource MutedText}" />
+                        </StackPanel>
+                        <Slider Grid.Row="0" Grid.Column="1" Value="{Binding Mixer.MasterVolume}"
+                                Style="{StaticResource VolumeSlider}" Margin="4,0,10,0" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Mixer.MasterVolumeText}"
+                                   Style="{StaticResource BodyText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock Grid.Row="0" Grid.Column="3" Text="Limiteur"
+                                   Foreground="{StaticResource WarningBrush}" FontSize="12"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Visibility="{Binding Mixer.IsLimiting,
+                                                Converter={StaticResource BoolToVisibility}}" />
+                        <ProgressBar Grid.Row="1" Grid.ColumnSpan="4"
+                                     Value="{Binding Mixer.MasterLevel, Mode=OneWay}"
+                                     Style="{StaticResource LevelMeter}" Margin="0,10,0,0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Aide -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="4.  Dans Discord" Style="{StaticResource TitleText}" />
+                    <TextBlock Style="{StaticResource BodyText}" Margin="0,10,0,6"
+                               Text="Paramètres → Voix et vidéo → Périphérique d'entrée : CABLE Output." />
+                    <TextBlock Style="{StaticResource MutedText}"
+                               Text="Désactive Krisp, l'annulation d'écho et le gain automatique, sinon la musique sera hachée." />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,14,0,0"
+                               Text="Les onglets Mixer, Voix, Micro et Soundboard servent à régler le détail : un volume par application, les effets de voix, le nettoyage du micro et tes extraits sonores." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

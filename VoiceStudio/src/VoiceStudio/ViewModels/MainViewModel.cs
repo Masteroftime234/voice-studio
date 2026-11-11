@@ -17,7 +17,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly SynchronizationContext? _uiContext;
     private readonly GlobalKeyWatcher _keys = new();
 
-    private string _section = "mixer";
+    private string _section = "simple";
     private bool _isRunning;
     private string? _errorMessage;
     private string _outputStatus = "Arrêté";
@@ -72,7 +72,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand ToggleEngineCommand { get; }
     public RelayCommand<string> GoToCommand { get; }
 
-    /// <summary>Page affichée : mixer, voix, micro, soundboard ou reglages.</summary>
+    /// <summary>Page affichée : simple, mixer, voix, micro, soundboard ou reglages.</summary>
     public string Section
     {
         get => _section;
@@ -212,9 +212,14 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             _stalledTicks = 0;
+            // Une entrée virtuelle a une horloge moins régulière : on lui laisse plus de marge.
+            bool virtualInput = VoiceStudio.Audio.Services.AudioDeviceService
+                .LooksLikeVirtualInput(Mixer.SelectedMicrophone.Name);
+
             _engine.Start(new EngineOptions(Mixer.SelectedMicrophone.Id, Mixer.SelectedOutput.Id)
             {
                 OutputLatencyMs = _settings.OutputLatencyMs,
+                CaptureBufferMs = virtualInput ? 40 : 20,
                 MonitorId = _settings.MonitorEnabled ? SettingsPage.SelectedMonitor?.Id : null
             });
             SaveSettings();

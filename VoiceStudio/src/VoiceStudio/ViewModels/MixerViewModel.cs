@@ -17,6 +17,7 @@ public sealed class MixerViewModel : ObservableObject
     private AudioDeviceInfo? _selectedOutput;
     private bool _cableMissing;
     private double _masterLevel;
+    private double _appsLevel;
     private bool _isLimiting;
     private string _systemAudioStatus = "Arrêté";
 
@@ -105,6 +106,30 @@ public sealed class MixerViewModel : ObservableObject
     {
         get => _cableMissing;
         private set => SetProperty(ref _cableMissing, value);
+    }
+
+    /// <summary>
+    /// Volume de tous les sons du PC à la fois, pour la page Simple :
+    /// déplace les quatre bus ensemble.
+    /// </summary>
+    public double AppsVolume
+    {
+        get => Buses.Count == 0 ? 100 : Math.Round(Buses.Average(bus => bus.Volume));
+        set
+        {
+            foreach (var bus in Buses) bus.Volume = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(AppsVolumeText));
+        }
+    }
+
+    public string AppsVolumeText => $"{AppsVolume:0} %";
+
+    /// <summary>Niveau le plus fort parmi les bus, pour l'indicateur de la page Simple.</summary>
+    public double AppsLevel
+    {
+        get => _appsLevel;
+        private set => SetProperty(ref _appsLevel, value);
     }
 
     public double MasterVolume
@@ -206,6 +231,8 @@ public sealed class MixerViewModel : ObservableObject
         Microphone.RefreshLevel();
         Soundboard.RefreshLevel();
         foreach (var bus in Buses) bus.RefreshLevel();
+
+        AppsLevel = Buses.Count == 0 ? 0 : Buses.Max(bus => bus.Level);
 
         var mixer = _engine.Mixer.Engine;
         MasterLevel = MeterScale.ToMeter(mixer.Peak);
