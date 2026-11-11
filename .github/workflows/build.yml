@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+defaults:
+  run:
+    working-directory: VoiceStudio
+
 jobs:
   build:
     runs-on: windows-latest
@@ -34,9 +38,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: VoiceStudio-Setup
-          path: installer/Output/VoiceStudio-Setup.exe
+          path: VoiceStudio/installer/Output/VoiceStudio-Setup.exe
 
       - uses: actions/upload-artifact@v4
         with:
           name: VoiceStudio-portable
-          path: publish/VoiceStudio.exe
+          path: VoiceStudio/publish/VoiceStudio.exe
