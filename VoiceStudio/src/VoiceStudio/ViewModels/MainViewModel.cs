@@ -125,10 +125,18 @@ public sealed class MainViewModel : ObservableObject
         {
             if (!SetProperty(ref _isRunning, value)) return;
             OnPropertyChanged(nameof(ToggleLabel));
+            OnPropertyChanged(nameof(StatusText));
         }
     }
 
     public string ToggleLabel => IsRunning ? "Arrêter" : "Démarrer";
+
+    /// <summary>Phrase d'état affichée sous le titre.</summary>
+    public string StatusText => !IsRunning
+        ? "Arrêté — clique sur Démarrer"
+        : IsOutputFlowing
+            ? "En marche — ta voix et tes sons partent vers Discord"
+            : "Démarrage…";
 
     public string? ErrorMessage
     {
@@ -158,7 +166,10 @@ public sealed class MainViewModel : ObservableObject
     public bool IsOutputFlowing
     {
         get => _isOutputFlowing;
-        private set => SetProperty(ref _isOutputFlowing, value);
+        private set
+        {
+            if (SetProperty(ref _isOutputFlowing, value)) OnPropertyChanged(nameof(StatusText));
+        }
     }
 
     /// <summary>Aucun câble virtuel (VB-CABLE) n'a été détecté.</summary>
