@@ -12,20 +12,22 @@ Applications du PC (sauf Discord) ───┘     (VB-CABLE, le câble virtuel)
 
 Cinq pages, en onglets en haut de la fenêtre.
 
-**Mixer** — une tranche verticale par source, comme une vraie table de mixage : volume général, micro, soundboard, puis une tranche par application qui joue du son (Spotify, navigateur, jeu…). Chacune a son curseur, son bouton couper et son indicateur de niveau. Les volumes par application sont retenus d'une session à l'autre.
+**Mixer** — une table de mixage à tranches verticales : volume général, micro, soundboard, puis quatre bus — **Jeu, Chat, Média, Autres**. Chaque application qui joue du son apparaît sous forme d'étiquette dans un bus, avec son propre volume et son bouton couper, et se **fait glisser d'un bus à l'autre** à la souris. Le classement de départ se fait sur le nom de l'application (Spotify et les navigateurs vont dans Média, par exemple) ; ton rangement et tes volumes sont retenus d'une session à l'autre.
 
 **Voix** — effets vocaux appliqués à ta voix : hauteur (grave/aiguë sans changer la vitesse), filtre, robot, distorsion, radio, téléphone, écho, réverbération. Combinables, avec 10 presets fournis et tes propres presets enregistrables.
 
 **Micro** — le nettoyage du son :
-- suppression du bruit de fond (souffle, ventilateur, bourdonnement), à utiliser à la place de Krisp ;
+- suppression du bruit de fond (souffle, ventilateur, bourdonnement), à utiliser à la place de Krisp — **désactivée par défaut** : sans elle ni effet vocal, la voix part vers Discord exactement telle qu'elle est captée ;
 - noise gate, qui ferme le micro entre deux phrases ;
 - push-to-talk, avec une touche qui marche même hors de la fenêtre ;
-- baisse automatique des autres sons quand tu parles ;
+- baisse automatique de tous les bus quand tu parles ;
 - retour audio pour s'entendre dans son casque.
 
 **Soundboard** — bibliothèque d'extraits joués dans le micro virtuel : WAV, MP3 et les formats que Windows sait lire, volume par son, raccourci clavier par son, plusieurs sons à la fois.
 
 **Réglages** — latence, casque de retour, applications exclues, aide pour Discord.
+
+En cas de craquements, la page Micro affiche un compteur de coupures audio : s'il monte pendant que tu parles, augmente la latence de sortie dans Réglages.
 
 Partout : Discord est exclu de la capture (liste modifiable), sinon les voix de tes amis leur reviendraient en écho. Le volume général est protégé par un limiteur. Les réglages sont enregistrés dans `%AppData%\VoiceStudio\settings.json`.
 
@@ -83,7 +85,7 @@ Pour que le micro s'appelle « Voice Studio Virtual Mic » dans Discord : Param�
 | Partie | Vérifié |
 |---|---|
 | Moteur audio (`VoiceStudio.Audio`) | Compilé sans erreur contre le code source de NAudio 2.2.1 |
-| Cœur du moteur (mixage, limiteur, effets, suppression de bruit, noise gate, ducking, push-to-talk, soundboard) | 70 tests automatiques, tous passent |
+| Cœur du moteur (mixage, bus, limiteur, effets, suppression de bruit, noise gate, ducking, push-to-talk, soundboard) | 76 tests automatiques, tous passent |
 | ViewModels et réglages | Compilés sans erreur |
 | Fenêtre WPF (XAML, `App.xaml.cs`, `MainWindow.xaml.cs`) | **Non compilée** : WPF ne se compile que sous Windows |
 | Capture réelle (micro, applications), sortie VB-CABLE, Discord | **Non testée** : demande un PC Windows avec du son |
@@ -97,7 +99,7 @@ src/VoiceStudio.Audio/          Moteur audio — aucune dépendance à l'interfa
   AudioEngine.cs                Point d'entrée : démarre / arrête tout le flux
   Capture/                      ProcessLoopbackCapture (son d'une application), chaîne de capture
   Effects/                      Effets vocaux, suppression de bruit, noise gate, presets
-  Mixing/                       MixerChannel, MixerEngine, SoundboardMixer, MultiSourceSampleProvider
+  Mixing/                       MixerChannel, MixerEngine, AudioBus, AppAudioSource, SoundboardMixer
   Processing/                   Conversions de format, passage en stéréo, limiteur, auto-ducking
   Routing/                      Tampon circulaire sans verrou entre capture et sortie
   Services/                     AudioDeviceService, AudioCaptureService (micro),
@@ -114,6 +116,7 @@ Choix techniques :
 
 - Format interne unique : 48 kHz, stéréo, float 32 bits. Chaque source est convertie à l'entrée.
 - Threads de capture et thread de sortie reliés par un tampon circulaire sans verrou ; aucune allocation dans les callbacks audio.
-- Les horloges du micro et du câble virtuel ne sont pas synchronisées : si un tampon dépasse 150 ms, le retard est rattrapé pour que la latence ne s'accumule pas.
+- Les horloges du micro et du câble virtuel ne sont pas synchronisées : si un tampon dépasse 150 ms, le retard est rattrapé pour que la latence ne s'accumule pas. Quand les données manquent, le son descend et remonte en 2 ms au lieu de couper net : un à-coup s'entend comme un blanc, pas comme un craquement.
+- La recherche des applications qui jouent du son tourne pendant l'audio : le travail coûteux (photo de tous les processus, lecture de leurs noms) n'est refait que lorsque la liste change.
 - NAudio 2.2.1 (version stable). La version 3 intègre la capture par application mais est encore en préversion.
 - La suppression de bruit travaille par fenêtres de 1024 échantillons qui se recouvrent : elle mesure en continu le niveau du bruit permanent dans chaque bande de fréquences et n'atténue que celles où la voix ne ressort pas. Elle ajoute environ 21 ms de latence quand elle est active.

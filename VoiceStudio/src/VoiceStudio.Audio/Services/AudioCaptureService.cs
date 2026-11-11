@@ -22,6 +22,9 @@ public sealed class AudioCaptureService : IDisposable
     /// <summary>Format natif du microphone (information).</summary>
     public WaveFormat? DeviceFormat { get; private set; }
 
+    /// <summary>Nombre de coupures audio : le micro n'a pas fourni ses données à temps.</summary>
+    public long Dropouts => _pipeline?.Underruns ?? 0;
+
     /// <summary>Démarre la capture et retourne la source 48 kHz stéréo à brancher sur le mixeur.</summary>
     public ISampleProvider Start(MMDevice device, int bufferMilliseconds = 20)
     {

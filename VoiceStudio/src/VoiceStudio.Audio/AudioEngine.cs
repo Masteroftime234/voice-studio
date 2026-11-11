@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using VoiceStudio.Audio.Mixing;
 using VoiceStudio.Audio.Processing;
 using VoiceStudio.Audio.Services;
 
@@ -21,7 +23,7 @@ public sealed record EngineOptions(string MicrophoneId, string OutputId)
 ///
 ///   micro → noise gate → effets vocaux ─┬─► tranche Microphone ─┐
 ///                                       └─► retour audio        │
-///   applications du PC (sauf exclues) ────► tranche Sons du PC ─┼─► limiteur ─► micro virtuel
+///   applications du PC (sauf exclues) ────► bus Jeu / Chat / Média / Autres ─┼─► limiteur ─► micro virtuel
 ///   soundboard ───────────────────────────► tranche Soundboard ─┘
 ///
 /// Ne dépend d'aucun élément graphique.
@@ -31,6 +33,7 @@ public sealed class AudioEngine : IDisposable
     private readonly object _gate = new();
     private readonly AudioCaptureService _microphone = new();
     private readonly VirtualMicrophoneService _virtualMicrophone = new();
+    private readonly ConcurrentDictionary<string, string> _busByApp = new(StringComparer.OrdinalIgnoreCase);
     private bool _pushToTalkEnabled;
     private bool _pushToTalkPressed;
 
@@ -44,8 +47,8 @@ public sealed class AudioEngine : IDisposable
         Monitor = new MonitorService();
 
         Mixer.Microphone.Source = Monitor.Attach(VoiceEffects.Chain);
-        Mixer.SystemAudio.Source = SystemAudio.Output;
         Mixer.Soundboard.Source = Soundboard.Mixer;
+        SystemAudio.SourcesChanged += RebuildRouting;
 
         _microphone.Faulted += ex => OnFault("Le microphone s'est arrêté : " + ex.Message);
         _virtualMicrophone.Faulted += ex => OnFault("La sortie virtuelle s'est arrêtée : " + ex.Message);
@@ -58,10 +61,43 @@ public sealed class AudioEngine : IDisposable
     public SoundboardService Soundboard { get; }
     public MonitorService Monitor { get; }
 
+    /// <summary>Les bus d'applications (Jeu, Chat, Média, Autres).</summary>
+    public IReadOnlyList<AudioBus> Buses => Mixer.Buses;
+
+    /// <summary>
+    /// Bus enregistré pour une application, consulté la première fois qu'elle est captée.
+    /// Retourner null laisse le classement par défaut décider.
+    /// </summary>
+    public Func<string, string?>? ResolveSavedBus { get; set; }
+
+    /// <summary>Range une application dans un bus et réapplique le routage.</summary>
+    public void AssignApp(string appName, string busId)
+    {
+        if (Mixer.FindBus(busId) == null) return;
+        _busByApp[appName] = busId;
+        RebuildRouting();
+    }
+
+    /// <summary>Bus dans lequel se trouve une application.</summary>
+    public string BusOf(string appName)
+    {
+        if (_busByApp.TryGetValue(appName, out string? busId)) return busId;
+        string resolved = ResolveSavedBus?.Invoke(appName) ?? DefaultBusFor(appName);
+        if (Mixer.FindBus(resolved) == null) resolved = "autres";
+        _busByApp[appName] = resolved;
+        return resolved;
+    }
+
     /// <summary>Auto-ducking des sons du PC par la voix.</summary>
     public Ducker Ducker => Mixer.Engine.Ducker;
 
     public bool IsRunning { get; private set; }
+
+    /// <summary>
+    /// Nombre de coupures audio depuis le démarrage. S'il monte pendant que tu parles,
+    /// la machine ne suit pas : augmenter la latence de sortie règle généralement le problème.
+    /// </summary>
+    public long Dropouts => _microphone.Dropouts;
 
     /// <summary>Dernière erreur à afficher à l'utilisateur (null si tout va bien).</summary>
     public string? LastError { get; private set; }
@@ -92,6 +128,31 @@ public sealed class AudioEngine : IDisposable
             _pushToTalkPressed = value;
             UpdateMicrophoneGate();
         }
+    }
+
+    /// <summary>Classement de départ, d'après le nom du processus.</summary>
+    private static string DefaultBusFor(string appName)
+    {
+        string[] media =
+        [
+            "spotify", "chrome", "msedge", "firefox", "opera", "brave", "vivaldi", "vlc",
+            "wmplayer", "itunes", "deezer", "music", "youtube", "netflix", "mpc-hc", "potplayer"
+        ];
+        string[] chat = ["teamspeak", "ts3client", "zoom", "teams", "skype", "mumble", "slack", "whatsapp"];
+
+        foreach (string name in media)
+            if (appName.Contains(name, StringComparison.OrdinalIgnoreCase)) return "media";
+        foreach (string name in chat)
+            if (appName.Contains(name, StringComparison.OrdinalIgnoreCase)) return "chat";
+        return "autres";
+    }
+
+    /// <summary>Redistribue les applications captées dans leurs bus respectifs.</summary>
+    private void RebuildRouting()
+    {
+        var sources = SystemAudio.Sources;
+        foreach (var bus in Mixer.Buses)
+            bus.SetSources(sources.Where(source => BusOf(source.Name) == bus.Id).ToArray());
     }
 
     private void UpdateMicrophoneGate() =>

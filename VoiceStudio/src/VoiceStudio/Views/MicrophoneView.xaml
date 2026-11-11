@@ -32,6 +32,11 @@
                     </Grid>
                     <TextBlock Text="{Binding NoiseSuppressionStrengthText}" Style="{StaticResource MutedText}"
                                Margin="120,6,0,0" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,14,0,0"
+                               Text="Désactivée, ta voix part vers Discord exactement telle qu'elle est captée." />
+                    <TextBlock Text="{Binding DropoutText}" Margin="0,10,0,0" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{StaticResource WarningBrush}"
+                               Visibility="{Binding HasDropouts, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
             </Border>
 

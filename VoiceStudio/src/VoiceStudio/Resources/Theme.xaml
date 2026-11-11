@@ -18,6 +18,11 @@
     <SolidColorBrush x:Key="DangerSurfaceBrush" Color="#3A1A22" />
     <SolidColorBrush x:Key="WarningSurfaceBrush" Color="#33290F" />
 
+    <SolidColorBrush x:Key="BusGameBrush" Color="#4ADE80" />
+    <SolidColorBrush x:Key="BusChatBrush" Color="#38BDF8" />
+    <SolidColorBrush x:Key="BusMediaBrush" Color="#F472B6" />
+    <SolidColorBrush x:Key="BusOtherBrush" Color="#A78BFA" />
+
     <LinearGradientBrush x:Key="MeterBrush" StartPoint="0,0" EndPoint="1,0">
         <GradientStop Color="#6D5BF6" Offset="0" />
         <GradientStop Color="#8B5CF6" Offset="0.65" />
@@ -29,6 +34,7 @@
     <helpers:EqualityToVisibilityConverter x:Key="SectionToVisibility" />
     <helpers:EqualityToBooleanConverter x:Key="SectionToBoolean" />
     <helpers:ScaleConverter x:Key="Scale" />
+    <helpers:ResourceLookupConverter x:Key="BrushByKey" />
 
     <!-- Textes -->
     <Style x:Key="SectionTitle" TargetType="TextBlock">
@@ -534,6 +540,11 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Curseur fin, dans une étiquette d'application -->
+    <Style x:Key="ThinSlider" TargetType="Slider" BasedOn="{StaticResource VolumeSlider}">
+        <Setter Property="Height" Value="16" />
     </Style>
 
     <!-- Petit bouton couper, sous une tranche verticale -->

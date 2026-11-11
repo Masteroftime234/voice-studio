@@ -41,8 +41,18 @@ public sealed class AppSettings
     /// <summary>Volume de chaque application, retenu par nom de processus.</summary>
     public Dictionary<string, AppLevel> AppLevels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Bus de chaque application (jeu, chat, media, autres), retenu par nom de processus.</summary>
+    public Dictionary<string, string> AppBuses { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Volume et état « coupé » de chaque bus.</summary>
+    public Dictionary<string, AppLevel> BusLevels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     // --- Micro ---
-    public bool NoiseSuppressionEnabled { get; set; } = true;
+    /// <summary>
+    /// Désactivée par défaut : sans effet ni nettoyage, le micro part vers Discord
+    /// exactement tel qu'il est capté.
+    /// </summary>
+    public bool NoiseSuppressionEnabled { get; set; }
     public double NoiseSuppressionStrength { get; set; } = 70;
     public bool NoiseGateEnabled { get; set; }
     public double NoiseGateThresholdDb { get; set; } = -45;

@@ -12,6 +12,7 @@ public sealed class MicrophoneViewModel : ObservableObject
     private readonly Action _applyMonitor;
     private readonly Action _hotkeysChanged;
     private bool _isCapturingKey;
+    private long _dropouts;
 
     public MicrophoneViewModel(AudioEngine engine, AppSettings settings, Action applyMonitor, Action hotkeysChanged)
     {
@@ -43,6 +44,27 @@ public sealed class MicrophoneViewModel : ObservableObject
     }
 
     public RelayCommand CaptureKeyCommand { get; }
+
+    /// <summary>Compteur de coupures, rafraîchi par la fenêtre.</summary>
+    public long Dropouts
+    {
+        get => _dropouts;
+        private set
+        {
+            if (!SetProperty(ref _dropouts, value)) return;
+            OnPropertyChanged(nameof(DropoutText));
+            OnPropertyChanged(nameof(HasDropouts));
+        }
+    }
+
+    public bool HasDropouts => Dropouts > 0;
+
+    public string DropoutText => Dropouts == 0
+        ? "Aucune coupure audio."
+        : $"{Dropouts} coupure(s) audio depuis le démarrage. Si le nombre monte pendant que tu parles, "
+          + "augmente la latence de sortie dans Réglages.";
+
+    public void RefreshDropouts() => Dropouts = _engine.Dropouts;
     public RelayCommand ClearKeyCommand { get; }
 
     // --- Suppression du bruit ---

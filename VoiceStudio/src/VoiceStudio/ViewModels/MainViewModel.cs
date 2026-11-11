@@ -39,6 +39,7 @@ public sealed class MainViewModel : ObservableObject
         SettingsPage = new SettingsViewModel(engine, _settings, RestartIfRunning, ApplyMonitor);
 
         engine.SystemAudio.ResolveSavedLevels = Mixer.SavedLevelsFor;
+        engine.ResolveSavedBus = Mixer.SavedBusFor;
 
         ToggleEngineCommand = new RelayCommand(ToggleEngine);
         GoToCommand = new RelayCommand<string>(section => Section = section);
@@ -125,6 +126,7 @@ public sealed class MainViewModel : ObservableObject
     {
         Mixer.RefreshMeters();
         Soundboard.RefreshPlayingState();
+        Microphone.RefreshDropouts();
 
         if (!IsRunning) return;
         long frames = _engine.Mixer.Engine.FramesRendered;

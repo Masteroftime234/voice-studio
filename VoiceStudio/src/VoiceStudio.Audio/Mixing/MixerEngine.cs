@@ -19,7 +19,7 @@ public sealed class MixerEngine : ISampleProvider
     private long _framesRendered;
 
     private MixerChannel? _duckKey;
-    private MixerChannel? _duckTarget;
+    private MixerChannel[] _duckTargets = [];
 
     public MixerEngine(params MixerChannel[] channels)
     {
@@ -41,15 +41,16 @@ public sealed class MixerEngine : ISampleProvider
     public Ducker Ducker { get; } = new();
 
     /// <summary>
-    /// Déclare quelle tranche déclenche la baisse (la voix) et laquelle est baissée (les sons du PC).
-    /// La tranche « voix » doit être placée avant la tranche baissée dans la liste.
+    /// Déclare quelle tranche déclenche la baisse (la voix) et lesquelles sont baissées.
+    /// La tranche « voix » doit être placée avant elles dans la liste.
     /// </summary>
-    public void ConfigureDucking(MixerChannel key, MixerChannel target)
+    public void ConfigureDucking(MixerChannel key, params MixerChannel[] targets)
     {
-        if (Array.IndexOf(_channels, key) >= Array.IndexOf(_channels, target))
-            throw new ArgumentException("La tranche de voix doit précéder la tranche à baisser.");
+        foreach (var target in targets)
+            if (Array.IndexOf(_channels, key) >= Array.IndexOf(_channels, target))
+                throw new ArgumentException("La tranche de voix doit précéder les tranches à baisser.");
         _duckKey = key;
-        _duckTarget = target;
+        _duckTargets = targets;
     }
 
     /// <summary>Niveau crête de la sortie finale, linéaire.</summary>
@@ -70,8 +71,10 @@ public sealed class MixerEngine : ISampleProvider
         for (int c = 0; c < _channels.Length; c++)
         {
             float blockPeak = _channels[c].MixInto(buffer, offset, count, _scratch);
-            if (_duckTarget != null && _channels[c] == _duckKey)
-                _duckTarget.ExternalGain = Ducker.Update(blockPeak, frames, AudioConstants.SampleRate);
+            if (_duckTargets.Length == 0 || _channels[c] != _duckKey) continue;
+
+            float duckGain = Ducker.Update(blockPeak, frames, AudioConstants.SampleRate);
+            for (int t = 0; t < _duckTargets.Length; t++) _duckTargets[t].ExternalGain = duckGain;
         }
 
         float target = MasterVolume;

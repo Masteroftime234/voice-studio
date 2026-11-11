@@ -3,29 +3,29 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <UserControl.Resources>
 
-        <!-- Une tranche : nom, curseur vertical, indicateur, bouton couper -->
+        <!-- Une tranche fixe : micro, soundboard -->
         <DataTemplate x:Key="ChannelStrip">
             <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="108" Margin="0,0,10,0" Padding="8,14">
+                    BorderThickness="1" CornerRadius="12" Width="104" Margin="0,0,10,0" Padding="8,14">
                 <StackPanel>
                     <TextBlock Text="{Binding Title}" Foreground="{StaticResource TextBrush}" FontSize="13"
-                               FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding Subtitle}" />
+                               FontWeight="SemiBold" HorizontalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Subtitle}" />
                     <TextBlock Text="{Binding VolumeText}" Style="{StaticResource MutedText}"
                                HorizontalAlignment="Center" Margin="0,2,0,12" />
-                    <Grid HorizontalAlignment="Center" Height="190">
+                    <Grid HorizontalAlignment="Center" Height="170">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="10" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Slider Grid.Column="0" Style="{StaticResource VerticalVolumeSlider}"
-                                Value="{Binding Volume}" Height="190" />
+                                Value="{Binding Volume}" Height="170" />
                         <Border Grid.Column="2" Width="6" CornerRadius="3" Background="#1C1C26">
                             <Rectangle Width="6" VerticalAlignment="Bottom" RadiusX="3" RadiusY="3"
                                        Fill="{StaticResource MeterBrush}"
                                        Height="{Binding Level, Converter={StaticResource Scale},
-                                                ConverterParameter=190}" />
+                                                ConverterParameter=170}" />
                         </Border>
                     </Grid>
                     <ToggleButton Style="{StaticResource SmallMuteToggle}" IsChecked="{Binding IsMuted}"
@@ -34,13 +34,108 @@
                 </StackPanel>
             </Border>
         </DataTemplate>
+
+        <!-- Une étiquette d'application, déplaçable d'un bus à l'autre -->
+        <DataTemplate x:Key="AppChip">
+            <Border Background="{StaticResource ControlBrush}" CornerRadius="8" Padding="9,7" Margin="0,0,0,6"
+                    Cursor="SizeAll" MouseMove="OnAppChipMouseMove"
+                    ToolTip="Fais glisser cette application vers un autre bus">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Title}" Foreground="{StaticResource TextBrush}"
+                                   FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding Subtitle}" />
+                        <TextBlock Grid.Column="1" Text="{Binding VolumeText}" Style="{StaticResource MutedText}"
+                                   Margin="6,0,0,0" />
+                    </Grid>
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Style="{StaticResource ThinSlider}" Value="{Binding Volume}"
+                                Margin="0,0,8,0" />
+                        <ToggleButton Grid.Column="1" IsChecked="{Binding IsMuted}" Width="22" Height="18"
+                                      Cursor="Hand" ToolTip="Couper cette application">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Root" Background="#2C2C3A" CornerRadius="5">
+                                        <TextBlock x:Name="Label" Text="M" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="#3A1A22" />
+                                            <Setter TargetName="Label" Property="Foreground"
+                                                    Value="{StaticResource DangerBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                    </Grid>
+                    <ProgressBar Value="{Binding Level, Mode=OneWay}" Style="{StaticResource LevelMeter}"
+                                 Height="3" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Une colonne de bus : volume, bouton couper, et ses applications -->
+        <DataTemplate x:Key="BusStrip">
+            <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="12" Width="196" Margin="0,0,10,0" Padding="10,14"
+                    AllowDrop="True" DragOver="OnBusDragOver" Drop="OnBusDrop">
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               Foreground="{Binding AccentKey, Converter={StaticResource BrushByKey}}" />
+                    <TextBlock Text="{Binding VolumeText}" Style="{StaticResource MutedText}"
+                               HorizontalAlignment="Center" Margin="0,2,0,12" />
+
+                    <Grid HorizontalAlignment="Center" Height="170">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Style="{StaticResource VerticalVolumeSlider}"
+                                Value="{Binding Volume}" Height="170" />
+                        <Border Grid.Column="2" Width="6" CornerRadius="3" Background="#1C1C26">
+                            <Rectangle Width="6" VerticalAlignment="Bottom" RadiusX="3" RadiusY="3"
+                                       Fill="{StaticResource MeterBrush}"
+                                       Height="{Binding Level, Converter={StaticResource Scale},
+                                                ConverterParameter=170}" />
+                        </Border>
+                    </Grid>
+
+                    <ToggleButton Style="{StaticResource SmallMuteToggle}" IsChecked="{Binding IsMuted}"
+                                  HorizontalAlignment="Center" Margin="0,14,0,12"
+                                  ToolTip="Couper ou réactiver ce bus" />
+
+                    <TextBlock Text="APPLICATIONS" Style="{StaticResource SectionTitle}" Margin="0,0,0,6" />
+                    <Border Background="#101018" CornerRadius="8" MinHeight="120" Padding="8">
+                        <Grid>
+                            <TextBlock Style="{StaticResource MutedText}" TextAlignment="Center"
+                                       VerticalAlignment="Center" FontSize="11"
+                                       Text="Dépose une application ici"
+                                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppChip}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- Périphériques -->
@@ -72,35 +167,46 @@
             </Grid>
         </Border>
 
-        <!-- Tranches -->
-        <Border Grid.Row="1" Style="{StaticResource Card}">
+        <!-- Table de mixage -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" VerticalAlignment="Top">
             <StackPanel>
-                <TextBlock Text="TABLE DE MIXAGE" Style="{StaticResource SectionTitle}" />
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="TABLE DE MIXAGE" Style="{StaticResource SectionTitle}"
+                               Margin="0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource MutedText}" VerticalAlignment="Center"
+                               Text="Fais glisser une application d'un bus à l'autre." />
+                </Grid>
+
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
-                              Padding="0,0,0,6">
+                              Padding="0,0,0,8">
                     <StackPanel Orientation="Horizontal" DataContext="{Binding Mixer}">
 
                         <!-- Volume général -->
                         <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource AccentBrush}"
-                                BorderThickness="1" CornerRadius="12" Width="108" Margin="0,0,16,0" Padding="8,14">
+                                BorderThickness="1" CornerRadius="12" Width="104" Margin="0,0,10,0" Padding="8,14"
+                                VerticalAlignment="Top">
                             <StackPanel>
                                 <TextBlock Text="Général" Foreground="{StaticResource TextBrush}" FontSize="13"
                                            FontWeight="SemiBold" HorizontalAlignment="Center" />
                                 <TextBlock Text="{Binding MasterVolumeText}" Style="{StaticResource MutedText}"
                                            HorizontalAlignment="Center" Margin="0,2,0,12" />
-                                <Grid HorizontalAlignment="Center" Height="190">
+                                <Grid HorizontalAlignment="Center" Height="170">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="10" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Slider Grid.Column="0" Style="{StaticResource VerticalVolumeSlider}"
-                                            Value="{Binding MasterVolume}" Height="190" />
+                                            Value="{Binding MasterVolume}" Height="170" />
                                     <Border Grid.Column="2" Width="6" CornerRadius="3" Background="#1C1C26">
                                         <Rectangle Width="6" VerticalAlignment="Bottom" RadiusX="3" RadiusY="3"
                                                    Fill="{StaticResource MeterBrush}"
                                                    Height="{Binding MasterLevel, Converter={StaticResource Scale},
-                                                            ConverterParameter=190}" />
+                                                            ConverterParameter=170}" />
                                     </Border>
                                 </Grid>
                                 <TextBlock Text="Limiteur" Foreground="{StaticResource WarningBrush}" FontSize="11"
@@ -110,31 +216,25 @@
                             </StackPanel>
                         </Border>
 
-                        <ContentPresenter Content="{Binding Microphone}"
+                        <ContentPresenter Content="{Binding Microphone}" VerticalAlignment="Top"
                                           ContentTemplate="{StaticResource ChannelStrip}" />
-                        <ContentPresenter Content="{Binding Soundboard}"
+                        <ContentPresenter Content="{Binding Soundboard}" VerticalAlignment="Top"
                                           ContentTemplate="{StaticResource ChannelStrip}" />
 
-                        <ItemsControl ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource ChannelStrip}">
+                        <Border Width="1" Background="{StaticResource CardBorderBrush}" Margin="4,8,14,8" />
+
+                        <ItemsControl ItemsSource="{Binding Buses}" ItemTemplate="{StaticResource BusStrip}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
-
-                        <Border Width="190" Margin="0,0,10,0" CornerRadius="12" BorderThickness="1"
-                                BorderBrush="{StaticResource CardBorderBrush}" Background="Transparent"
-                                Visibility="{Binding HasApps, Converter={StaticResource NotBoolToVisibility}}">
-                            <TextBlock Style="{StaticResource MutedText}" TextAlignment="Center" Margin="16"
-                                       VerticalAlignment="Center"
-                                       Text="Les applications qui jouent du son apparaissent ici, chacune avec son volume." />
-                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 
                 <TextBlock Text="{Binding Mixer.SystemAudioStatus}" Style="{StaticResource MutedText}"
-                           Margin="0,12,0,0" />
+                           Margin="0,10,0,0" />
             </StackPanel>
         </Border>
     </Grid>

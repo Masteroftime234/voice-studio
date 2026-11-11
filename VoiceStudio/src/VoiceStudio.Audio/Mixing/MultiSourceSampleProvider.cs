@@ -14,7 +14,7 @@ public sealed class MultiSourceSampleProvider : ISampleProvider
     public WaveFormat WaveFormat => AudioConstants.MixFormat;
 
     /// <summary>Remplace la liste des sources (appelé hors du thread audio).</summary>
-    public void SetSources(ISampleProvider[] sources) => Volatile.Write(ref _sources, sources);
+    public void SetSources(params ISampleProvider[] sources) => Volatile.Write(ref _sources, sources);
 
     public int Read(float[] buffer, int offset, int count)
     {

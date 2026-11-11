@@ -200,9 +200,22 @@ static float PeakOf(float[] buffer, int from = 0)
     Check(PeakOf(block) == 0, "retard : attend le pré-remplissage avant de jouer");
     ring.Write(ones);
     provider.Read(block, 0, 960);
-    Check(block[0] == 1f && block[959] == 1f, "retard : lecture normale une fois pré-rempli");
+    Check(block[0] < 0.2f && block[300] == 1f && block[959] == 1f,
+        "retard : lecture normale une fois pré-rempli, avec montée douce");
 
-    for (int i = 0; i < 30; i++) ring.Write(ones); // 300 ms d'avance : dérive simulée
+    // Manque de données en cours de lecture : descente à zéro, sans craquement.
+    int remaining = ring.Available;
+    ring.Skip(remaining);
+    ring.Write(ones.AsSpan(0, 480));
+    provider.Read(block, 0, 960);
+    bool smoothDrop = block[0] == 1f && block[479] < 0.3f && block[480] == 0f && block[959] == 0f;
+    Check(smoothDrop && provider.Underruns == 1, "retard : coupure amortie au lieu d'un craquement");
+
+    for (int i = 0; i < 3; i++) ring.Write(ones);
+    provider.Read(block, 0, 960);
+    Check(block[0] < 0.3f && block[300] == 1f, "retard : reprise en douceur après un manque");
+
+    for (int i = 0; i < 40; i++) ring.Write(ones); // 400 ms d'avance : dérive simulée
     provider.Read(block, 0, 960);
     Check(provider.Overruns == 1 && ring.Available <= 48000 * 2 * 150 / 1000,
         "dérive : la latence accumulée est rattrapée");
@@ -476,6 +489,29 @@ static float RmsOf(float[] data, int from)
     var processed = Pull(chain, 48000);
     Check(processed.All(float.IsFinite) && PeakOf(processed, 24000) > 0.3f,
         "bruit : intégrée à la chaîne vocale");
+}
+
+
+// --- Bus de mixage -----------------------------------------------------------
+{
+    var service = new VoiceStudio.Audio.Services.AudioMixerService();
+    Check(service.Buses.Count == 4 && service.FindBus("media")?.Name == "Média",
+        "bus : quatre bus nommés");
+    Check(service.FindBus("MEDIA") != null && service.FindBus("inconnu") == null,
+        "bus : recherche par identifiant");
+    Check(service.Engine.Channels.Count == 6, "bus : micro + 4 bus + soundboard dans le mixeur");
+
+    // Le ducking baisse tous les bus à la fois, mais pas le soundboard.
+    var mixer = service.Engine;
+    mixer.Ducker.Enabled = true;
+    mixer.Ducker.MinimumVolume = 0.2f;
+    service.Microphone.Source = new ConstantSource(0.3f);
+    foreach (var bus in service.Buses) bus.Channel.Source = new ConstantSource(0.2f);
+    service.Soundboard.Source = new ConstantSource(0.1f);
+    Pull(mixer, 48000);
+    Check(service.Buses.All(bus => Math.Abs(bus.Channel.ExternalGain - 0.2f) < 0.01f) &&
+          service.Soundboard.ExternalGain == 1f,
+        "bus : la voix baisse tous les bus, pas le soundboard");
 }
 
 Console.WriteLine(failures == 0 ? "\nTous les tests passent." : $"\n{failures} test(s) en échec.");

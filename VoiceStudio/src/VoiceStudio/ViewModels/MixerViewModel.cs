@@ -36,6 +36,18 @@ public sealed class MixerViewModel : ObservableObject
             Volume = settings.SoundboardVolume,
             IsMuted = settings.SoundboardMuted
         };
+
+        string[] accents = ["BusGameBrush", "BusChatBrush", "BusMediaBrush", "BusOtherBrush"];
+        for (int i = 0; i < engine.Mixer.Buses.Count; i++)
+        {
+            var bus = new BusViewModel(engine.Mixer.Buses[i], accents[i % accents.Length]);
+            if (settings.BusLevels.TryGetValue(bus.Id, out var level))
+            {
+                bus.Volume = level.Volume;
+                bus.IsMuted = level.Muted;
+            }
+            Buses.Add(bus);
+        }
         engine.Mixer.Engine.MasterVolume = (float)(settings.MasterVolume / 100.0);
 
         RefreshDevicesCommand = new RelayCommand(RefreshDevices);
@@ -45,8 +57,8 @@ public sealed class MixerViewModel : ObservableObject
     public ChannelViewModel Microphone { get; }
     public ChannelViewModel Soundboard { get; }
 
-    /// <summary>Une tranche par application dont le son est capturé.</summary>
-    public ObservableCollection<ChannelViewModel> Apps { get; } = [];
+    /// <summary>Les bus : Jeu, Chat, Média, Autres.</summary>
+    public ObservableCollection<BusViewModel> Buses { get; } = [];
 
     public ObservableCollection<AudioDeviceInfo> Microphones { get; } = [];
     public ObservableCollection<AudioDeviceInfo> Outputs { get; } = [];
@@ -125,26 +137,51 @@ public sealed class MixerViewModel : ObservableObject
         }
     }
 
-    /// <summary>Reconstruit la liste des tranches d'application à partir du moteur.</summary>
+    /// <summary>Bus enregistré pour une application (appelé depuis le moteur).</summary>
+    public string? SavedBusFor(string appName)
+    {
+        lock (_settings.AppBuses)
+        {
+            return _settings.AppBuses.TryGetValue(appName, out string? busId) ? busId : null;
+        }
+    }
+
+    /// <summary>Range les applications captées dans leurs bus.</summary>
     public void SyncApps()
     {
         var sources = _engine.SystemAudio.Sources;
-        if (Apps.Count == sources.Count &&
-            !Apps.Where((app, index) => app.AppName != sources[index].Name).Any())
-            return;
+        var existing = Buses.SelectMany(bus => bus.Apps)
+            .Where(app => app.AppName != null)
+            .ToDictionary(app => app.AppName!, StringComparer.OrdinalIgnoreCase);
 
-        Apps.Clear();
-        foreach (var source in sources) Apps.Add(new ChannelViewModel(source));
+        foreach (var bus in Buses)
+        {
+            var apps = sources
+                .Where(source => _engine.BusOf(source.Name) == bus.Id)
+                .Select(source => existing.TryGetValue(source.Name, out var known) ? known
+                                  : new ChannelViewModel(source))
+                .ToList();
+            if (!bus.Apps.SequenceEqual(apps)) bus.SetApps(apps);
+        }
         OnPropertyChanged(nameof(HasApps));
     }
 
-    public bool HasApps => Apps.Count > 0;
+    /// <summary>Déplace une application vers un autre bus (glisser-déposer).</summary>
+    public void MoveApp(ChannelViewModel app, BusViewModel target)
+    {
+        if (app.AppName == null) return;
+        lock (_settings.AppBuses) _settings.AppBuses[app.AppName] = target.Id;
+        _engine.AssignApp(app.AppName, target.Id);
+        SyncApps();
+    }
+
+    public bool HasApps => Buses.Any(bus => bus.Apps.Count > 0);
 
     public void RefreshMeters()
     {
         Microphone.RefreshLevel();
         Soundboard.RefreshLevel();
-        foreach (var app in Apps) app.RefreshLevel();
+        foreach (var bus in Buses) bus.RefreshLevel();
 
         var mixer = _engine.Mixer.Engine;
         MasterLevel = MeterScale.ToMeter(mixer.Peak);
@@ -185,12 +222,15 @@ public sealed class MixerViewModel : ObservableObject
 
         lock (_settings.AppLevels)
         {
-            foreach (var app in Apps)
+            foreach (var app in Buses.SelectMany(bus => bus.Apps))
             {
                 if (app.AppName == null) continue;
                 _settings.AppLevels[app.AppName] = new AppLevel { Volume = app.Volume, Muted = app.IsMuted };
             }
         }
+
+        foreach (var bus in Buses)
+            _settings.BusLevels[bus.Id] = new AppLevel { Volume = bus.Volume, Muted = bus.IsMuted };
     }
 
     private static void Replace(ObservableCollection<AudioDeviceInfo> target, IReadOnlyList<AudioDeviceInfo> items)

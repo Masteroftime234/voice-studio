@@ -28,13 +28,12 @@ public enum AppCaptureState
 public sealed class SystemAudioCaptureService : IDisposable
 {
     public const int MaxCapturedApps = 8;
-    private const int ScanIntervalMs = 1000;
+    private const int ScanIntervalMs = 1500;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
 
     public static readonly string[] DefaultExcludedApps =
         ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
 
-    private readonly MultiSourceSampleProvider _output = new();
     private readonly object _gate = new();
     private readonly ManualResetEventSlim _wake = new(false);
     private readonly int _ownProcessId = Environment.ProcessId;
@@ -42,9 +41,10 @@ public sealed class SystemAudioCaptureService : IDisposable
     private volatile bool _stopRequested;
     private volatile string[] _excludedApps = DefaultExcludedApps;
     private AppAudioSource[] _sources = [];
-
-    /// <summary>Source 48 kHz stéréo, stable pendant toute la vie du service.</summary>
-    public ISampleProvider Output => _output;
+    private readonly Dictionary<int, string?> _names = new();
+    private HashSet<int> _lastRaw = [];
+    private HashSet<int> _lastResult = [];
+    private string[]? _lastExcluded;
 
     public AppCaptureState State { get; private set; } = AppCaptureState.Stopped;
 
@@ -135,6 +135,7 @@ public sealed class SystemAudioCaptureService : IDisposable
         string? lastFailure = null;
         SetState(AppCaptureState.Waiting, "Recherche des applications qui jouent du son…");
 
+        using var enumerator = new MMDeviceEnumerator();
         try
         {
             while (!_stopRequested)
@@ -143,7 +144,7 @@ public sealed class SystemAudioCaptureService : IDisposable
                 HashSet<int> wanted;
                 try
                 {
-                    wanted = FindAudioProcesses();
+                    wanted = FindAudioProcesses(enumerator);
                 }
                 catch (Exception ex)
                 {
@@ -172,7 +173,7 @@ public sealed class SystemAudioCaptureService : IDisposable
                     if (slots.Exists(slot => slot.ProcessId == processId)) continue;
                     if (failedUntil.TryGetValue(processId, out DateTime until) && DateTime.UtcNow < until) continue;
 
-                    string name = ProcessTree.GetName(processId) ?? $"PID {processId}";
+                    string name = NameOf(processId) ?? $"PID {processId}";
                     var created = TryStartCapture(processId, name, out string? failure);
                     if (created != null)
                     {
@@ -217,7 +218,6 @@ public sealed class SystemAudioCaptureService : IDisposable
         }
         finally
         {
-            _output.SetSources([]);
             Volatile.Write(ref _sources, []);
             SourcesChanged?.Invoke();
             foreach (var slot in slots) slot.Capture?.Dispose();
@@ -226,9 +226,7 @@ public sealed class SystemAudioCaptureService : IDisposable
 
     private void PublishSources(List<Slot> slots)
     {
-        var sources = slots.Select(slot => slot.Source).ToArray();
-        _output.SetSources(sources);
-        Volatile.Write(ref _sources, sources);
+        Volatile.Write(ref _sources, slots.Select(slot => slot.Source).ToArray());
         SourcesChanged?.Invoke();
     }
 
@@ -236,47 +234,58 @@ public sealed class SystemAudioCaptureService : IDisposable
     /// Processus possédant une session audio sur une sortie active, hors exclusions.
     /// Si un processus et l'un de ses ancêtres sont tous deux présents, seul l'ancêtre est gardé
     /// (sa capture inclut déjà ses enfants : évite de doubler le son).
+    ///
+    /// Ce relevé tourne pendant que l'audio joue : le travail coûteux (photo de tous les processus,
+    /// lecture de leurs noms) n'est refait que lorsque la liste des processus sonores a changé.
     /// </summary>
-    private HashSet<int> FindAudioProcesses()
+    private HashSet<int> FindAudioProcesses(MMDeviceEnumerator enumerator)
     {
         var found = new HashSet<int>();
-        var excluded = _excludedApps;
 
-        using (var enumerator = new MMDeviceEnumerator())
+        foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
         {
-            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+            try
             {
-                try
+                var manager = device.AudioSessionManager;
+                manager.RefreshSessions();
+                var sessions = manager.Sessions;
+                int count = sessions?.Count ?? 0;
+                for (int i = 0; i < count; i++)
                 {
-                    var manager = device.AudioSessionManager;
-                    manager.RefreshSessions();
-                    var sessions = manager.Sessions;
-                    int count = sessions?.Count ?? 0;
-                    for (int i = 0; i < count; i++)
-                    {
-                        using var session = sessions![i];
-                        if (session.IsSystemSoundsSession) continue;
-                        if (session.State == AudioSessionState.AudioSessionStateExpired) continue;
-                        int processId = (int)session.GetProcessID;
-                        if (processId == 0 || processId == _ownProcessId) continue;
-                        found.Add(processId);
-                    }
+                    using var session = sessions![i];
+                    if (session.IsSystemSoundsSession) continue;
+                    if (session.State == AudioSessionState.AudioSessionStateExpired) continue;
+                    int processId = (int)session.GetProcessID;
+                    if (processId == 0 || processId == _ownProcessId) continue;
+                    found.Add(processId);
                 }
-                catch
-                {
-                    // périphérique retiré pendant le parcours : ignoré
-                }
-                finally
-                {
-                    device.Dispose();
-                }
+            }
+            catch
+            {
+                // périphérique retiré pendant le parcours : ignoré
+            }
+            finally
+            {
+                device.Dispose();
             }
         }
 
-        if (found.Count == 0) return found;
-        var parents = ProcessTree.GetParentMap();
+        var excluded = _excludedApps;
+        if (found.Count == 0)
+        {
+            _lastRaw.Clear();
+            _lastExcluded = excluded;
+            _lastResult = [];
+            return found;
+        }
 
-        // Exclusions : le processus lui-même ou n'importe lequel de ses ancêtres porte un nom exclu.
+        // Rien n'a bougé depuis le dernier passage : on réutilise le résultat.
+        if (ReferenceEquals(excluded, _lastExcluded) && found.SetEquals(_lastRaw))
+            return [.._lastResult];
+
+        var parents = ProcessTree.GetParentMap();
+        _names.Clear();
+
         found.RemoveWhere(processId => IsExcluded(processId, parents, excluded));
 
         // Dédoublonnage parent / enfant.
@@ -285,7 +294,20 @@ public sealed class SystemAudioCaptureService : IDisposable
             foreach (int other in found)
                 if (processId != other && ProcessTree.IsDescendantOf(processId, other, parents))
                     result.Remove(processId);
+
+        _lastRaw = [..found];
+        _lastExcluded = excluded;
+        _lastResult = [..result];
         return result;
+    }
+
+    /// <summary>Nom d'un processus, retenu le temps d'un relevé.</summary>
+    private string? NameOf(int processId)
+    {
+        if (_names.TryGetValue(processId, out string? cached)) return cached;
+        string? name = ProcessTree.GetName(processId);
+        _names[processId] = name;
+        return name;
     }
 
     private bool IsExcluded(int processId, Dictionary<int, int> parents, string[] excluded)
@@ -294,7 +316,7 @@ public sealed class SystemAudioCaptureService : IDisposable
         for (int depth = 0; depth < 32 && current != 0; depth++)
         {
             if (current == _ownProcessId) return true;
-            string? name = ProcessTree.GetName(current);
+            string? name = NameOf(current);
             if (name == null) return depth == 0; // processus disparu
             foreach (string excludedName in excluded)
                 if (string.Equals(name, excludedName, StringComparison.OrdinalIgnoreCase)) return true;

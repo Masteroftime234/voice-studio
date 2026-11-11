@@ -49,3 +49,17 @@ public sealed class InverseBooleanToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         Binding.DoNothing;
 }
+
+/// <summary>Donne le pinceau nommé par la valeur (couleur d'un bus).</summary>
+public sealed class ResourceLookupConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        string? key = value?.ToString();
+        if (key == null) return null;
+        return Application.Current?.TryFindResource(key);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        Binding.DoNothing;
+}
