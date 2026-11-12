@@ -38,12 +38,21 @@ public abstract class VoiceEffect
 {
     private bool _enabled;
 
+    private float[] _dry = new float[4096];
+
     protected VoiceEffect(string id, string name, params EffectParameter[] parameters)
     {
         Id = id;
         Name = name;
-        Parameters = parameters;
+        Mix = new EffectParameter("mix_global", "Dosage", 0f, 100f, 100f, "%");
+        Parameters = [.. parameters, Mix];
     }
+
+    /// <summary>
+    /// Proportion du son traité dans le résultat : 100 % = seulement l'effet,
+    /// 50 % = moitié voix d'origine. Commun à tous les effets.
+    /// </summary>
+    public EffectParameter Mix { get; }
 
     public string Id { get; }
     public string Name { get; }
@@ -62,7 +71,26 @@ public abstract class VoiceEffect
         return null;
     }
 
-    public abstract void Process(Span<float> samples);
+    /// <summary>Applique l'effet puis le dose avec la voix d'origine.</summary>
+    public void Apply(Span<float> samples)
+    {
+        float mix = Mix.Value / 100f;
+        if (mix >= 0.999f)
+        {
+            Process(samples);
+            return;
+        }
+
+        if (_dry.Length < samples.Length) _dry = new float[samples.Length]; // exceptionnel
+        var dry = _dry.AsSpan(0, samples.Length);
+        samples.CopyTo(dry);
+
+        Process(samples);
+        for (int i = 0; i < samples.Length; i++)
+            samples[i] = dry[i] * (1f - mix) + samples[i] * mix;
+    }
+
+    protected abstract void Process(Span<float> samples);
 
     /// <summary>Vide la mémoire interne (lignes à retard, filtres) quand l'effet est réactivé.</summary>
     public virtual void Reset()

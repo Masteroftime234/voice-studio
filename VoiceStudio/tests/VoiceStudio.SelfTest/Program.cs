@@ -5,6 +5,7 @@ using VoiceStudio.Audio.Effects;
 using VoiceStudio.Audio.Mixing;
 using VoiceStudio.Audio.Processing;
 using VoiceStudio.Audio.Routing;
+using VoiceStudio.Audio.Services;
 
 // Tests du cœur du moteur audio, sans aucun périphérique.
 // Lancement : dotnet run --project tests/VoiceStudio.SelfTest
@@ -273,7 +274,7 @@ static int Crossings(float[] data, int from)
 static void ProcessBlocks(VoiceEffect effect, float[] data)
 {
     for (int i = 0; i < data.Length; i += 480)
-        effect.Process(data.AsSpan(i, Math.Min(480, data.Length - i)));
+        effect.Apply(data.AsSpan(i, Math.Min(480, data.Length - i)));
 }
 
 {
@@ -571,6 +572,133 @@ static float RmsOf(float[] data, int from)
         "bascule : indépendante de l'auto-ducking");
 }
 
+
+// --- Test du micro -----------------------------------------------------------
+{
+    var tap = new RecordTap(new SineSource(300, 0.4f));
+    var block = new float[960];
+    tap.Read(block, 0, 960);
+    Check(!tap.IsRecording && tap.Stop().Length == 0, "test micro : rien n'est gardé hors enregistrement");
+
+    tap.Start(1); // 1 seconde
+    for (int i = 0; i < 120; i++) tap.Read(block, 0, 960); // 1,2 s : on dépasse volontairement
+    var captured = tap.Stop();
+    Check(captured.Length == 96000 && Math.Abs(PeakOf(captured) - 0.4f) < 0.01f,
+        "test micro : une seconde enregistrée, ni plus ni moins");
+
+    // Voix trop faible : l'analyse propose de monter.
+    var faible = MonoSine(200, 0.02f, 48000);
+    var basse = VoiceStudio.Audio.Services.MicrophoneTestResult.Analyse(faible, 0);
+    Check(basse.SuggestedGainDb > 6 && basse.Verdict.Contains("discret"),
+        $"test micro : voix faible, gain conseillé {basse.SuggestedGainDb:+0;-0} dB");
+
+    // Voix déjà forte : l'analyse propose de baisser.
+    var forte = MonoSine(200, 0.9f, 48000);
+    var haute = VoiceStudio.Audio.Services.MicrophoneTestResult.Analyse(forte, 0);
+    Check(haute.SuggestedGainDb < -6, $"test micro : voix forte, gain conseillé {haute.SuggestedGainDb:+0;-0} dB");
+
+    // Niveau correct : rien à changer.
+    var bonne = MonoSine(200, 0.12f, 48000);
+    var juste = VoiceStudio.Audio.Services.MicrophoneTestResult.Analyse(bonne, 0);
+    Check(Math.Abs(juste.SuggestedGainDb) < 3 && juste.Verdict.Contains("bon"),
+        "test micro : niveau correct reconnu");
+
+    // Silence : message clair plutôt qu'un gain absurde.
+    var rien = new float[48000];
+    var vide = VoiceStudio.Audio.Services.MicrophoneTestResult.Analyse(rien, 0);
+    Check(vide.SuggestedGainDb == 0 && vide.Verdict.Contains("entendu"), "test micro : silence détecté");
+}
+
+
+// --- Vague d'améliorations ---------------------------------------------------
+{
+    // Dosage sec / humide commun à tous les effets.
+    var distortion = new DistortionEffect();
+    distortion.Mix.Value = 0f;
+    var untouched = MonoSine(300, 0.5f, 4800);
+    var original = (float[])untouched.Clone();
+    ProcessBlocks(distortion, untouched);
+    Check(untouched.SequenceEqual(original), "dosage : à 0 %, l'effet ne change rien");
+    distortion.Mix.Value = 100f;
+    ProcessBlocks(distortion, untouched);
+    Check(!untouched.SequenceEqual(original), "dosage : à 100 %, l'effet s'applique");
+
+    // Compresseur : réduit l'écart entre fort et faible.
+    var compressor = new CompressorEffect(48000);
+    var fort = MonoSine(200, 0.8f, 96000);
+    var faible = MonoSine(200, 0.08f, 96000);
+    ProcessBlocks(compressor, fort);
+    compressor.Reset();
+    ProcessBlocks(compressor, faible);
+    float ecartAvant = 0.8f / 0.08f;
+    float ecartApres = PeakOf(fort, 48000) / PeakOf(faible, 48000);
+    Check(ecartApres < ecartAvant * 0.6f,
+        $"compresseur : écart fort/faible réduit de {ecartAvant:0} à {ecartApres:0}");
+
+    // Anti-pop : coupe les graves, garde la voix.
+    var pop = new PopFilterEffect(48000);
+    var grave = MonoSine(45, 0.5f, 48000);
+    ProcessBlocks(pop, grave);
+    pop.Reset();
+    var voix = MonoSine(400, 0.5f, 48000);
+    ProcessBlocks(pop, voix);
+    Check(PeakOf(grave, 24000) < 0.1f && PeakOf(voix, 24000) > 0.45f, "anti-pop : coupe sous 95 Hz");
+
+    // Dé-esseur : atténue les sifflantes, pas la voix.
+    var deEsser = new DeEsserEffect(48000);
+    var sifflante = MonoSine(7000, 0.5f, 48000);
+    ProcessBlocks(deEsser, sifflante);
+    deEsser.Reset();
+    var medium = MonoSine(500, 0.5f, 48000);
+    ProcessBlocks(deEsser, medium);
+    Check(PeakOf(sifflante, 24000) < 0.3f && PeakOf(medium, 24000) > 0.45f,
+        "dé-esseur : atténue les sifflantes seulement");
+
+    // Niveau automatique : remonte une voix faible vers la cible.
+    var auto = new AutoLevel(48000) { Enabled = true, TargetDb = -20f };
+    var discret = MonoSine(200, 0.02f, 48000 * 6);
+    for (int i = 0; i < discret.Length; i += 480) auto.Process(discret.AsSpan(i, 480));
+    float apres = PeakOf(discret, 48000 * 5);
+    Check(apres > 0.06f && apres < 0.25f, $"niveau auto : voix faible remontée à {apres:0.00}");
+    Check(auto.CurrentGainDb > 6, "niveau auto : gain appliqué raisonnable");
+
+    // Solo : seule la tranche choisie passe.
+    var a = new MixerChannel("A", 48000) { Source = new ConstantSource(0.3f) };
+    var b = new MixerChannel("B", 48000) { Source = new ConstantSource(0.3f) };
+    var soloMixer = new MixerEngine(a, b);
+    Pull(soloMixer, 4800);
+    Check(Math.Abs(Pull(soloMixer, 480)[^1] - 0.6f) < 1e-3, "solo : sans solo, tout passe");
+    a.Solo = true;
+    Pull(soloMixer, 4800);
+    Check(Math.Abs(Pull(soloMixer, 480)[^1] - 0.3f) < 1e-3, "solo : seule la tranche en solo passe");
+    a.Solo = false;
+
+    // Mono : un son présent d'un seul côté se retrouve au centre.
+    var cote = new MixerChannel("Côté", 48000) { Source = new LeftOnlySource(0.4f), Mono = true };
+    var monoMixer = new MixerEngine(cote);
+    Pull(monoMixer, 4800);
+    var sortie = Pull(monoMixer, 480);
+    Check(Math.Abs(sortie[^2] - 0.2f) < 1e-3 && Math.Abs(sortie[^1] - 0.2f) < 1e-3,
+        "mono : les deux canaux deviennent identiques");
+
+    // Soundboard : découpe, fondu et boucle.
+    var board = new SoundboardMixer();
+    var plein = new float[48000 * 2];
+    Array.Fill(plein, 0.5f);
+    board.Play("x", plein, new PlaybackOptions { Volume = 1f, StartSample = 0, EndSample = 960, Loop = true });
+    var bloc = new float[960];
+    board.Read(bloc, 0, 960);
+    board.Read(bloc, 0, 960);
+    Check(Math.Abs(bloc[500] - 0.5f) < 1e-4 && board.IsAnyPlaying, "soundboard : boucle sur l'extrait découpé");
+    board.StopAll();
+
+    var fondu = new SoundboardMixer();
+    fondu.Play("y", plein, new PlaybackOptions { Volume = 1f, EndSample = 9600, FadeSamples = 1920 });
+    fondu.Read(bloc, 0, 960);
+    Check(bloc[0] < 0.05f && bloc[958] > bloc[0], "soundboard : fondu d'entrée");
+}
+
+
 Console.WriteLine(failures == 0 ? "\nTous les tests passent." : $"\n{failures} test(s) en échec.");
 return failures == 0 ? 0 : 1;
 
@@ -622,5 +750,19 @@ sealed class MonoClip(int sampleRate, int samples) : ISampleProvider
         Array.Fill(buffer, 0.5f, offset, n);
         _position += n;
         return n;
+    }
+}
+
+sealed class LeftOnlySource(float level) : ISampleProvider
+{
+    public WaveFormat WaveFormat => AudioConstants.MixFormat;
+    public int Read(float[] buffer, int offset, int count)
+    {
+        for (int i = 0; i < count; i += 2)
+        {
+            buffer[offset + i] = level;
+            buffer[offset + i + 1] = 0f;
+        }
+        return count;
     }
 }

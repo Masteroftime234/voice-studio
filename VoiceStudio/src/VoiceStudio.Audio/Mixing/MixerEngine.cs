@@ -20,6 +20,7 @@ public sealed class MixerEngine : ISampleProvider
 
     private MixerChannel? _duckKey;
     private MixerChannel[] _duckTargets = [];
+    private MixerChannel? _soundboardKey;
 
     public MixerEngine(params MixerChannel[] channels)
     {
@@ -40,6 +41,12 @@ public sealed class MixerEngine : ISampleProvider
     /// <summary>Auto-ducking (inactif tant que <see cref="ConfigureDucking"/> n'a pas été appelé).</summary>
     public Ducker Ducker { get; } = new();
 
+    /// <summary>Baisse des sons du PC pendant qu'un extrait du soundboard joue.</summary>
+    public Ducker SoundboardDucker { get; } = new();
+
+    /// <summary>Déclare la tranche du soundboard comme deuxième déclencheur de baisse.</summary>
+    public void ConfigureSoundboardDucking(MixerChannel soundboard) => _soundboardKey = soundboard;
+
     /// <summary>
     /// Déclare quelle tranche déclenche la baisse (la voix) et lesquelles sont baissées.
     /// La tranche « voix » doit être placée avant elles dans la liste.
@@ -59,6 +66,9 @@ public sealed class MixerEngine : ISampleProvider
     /// <summary>Réduction appliquée par le limiteur (1 = aucune).</summary>
     public float LimiterGain => _limiter.CurrentGain;
 
+    /// <summary>Retard dû à l'anticipation du limiteur, en trames.</summary>
+    public int LimiterLatencyFrames => _limiter.LatencyFrames;
+
     /// <summary>Compteur de trames envoyées à la sortie : s'il avance, le flux fonctionne.</summary>
     public long FramesRendered => Interlocked.Read(ref _framesRendered);
 
@@ -68,12 +78,28 @@ public sealed class MixerEngine : ISampleProvider
 
         Array.Clear(buffer, offset, count);
         int frames = count / 2;
+        float voicePeak = 0f;
+        float soundboardPeak = 0f;
+        bool soloActive = false;
+        for (int c = 0; c < _channels.Length; c++)
+            if (_channels[c].Solo) { soloActive = true; break; }
+
         for (int c = 0; c < _channels.Length; c++)
         {
-            float blockPeak = _channels[c].MixInto(buffer, offset, count, _scratch);
-            if (_duckTargets.Length == 0 || _channels[c] != _duckKey) continue;
+            float blockPeak = _channels[c].MixInto(buffer, offset, count, _scratch, soloActive);
+            if (_channels[c] == _duckKey) voicePeak = blockPeak;
+            else if (_channels[c] == _soundboardKey) soundboardPeak = blockPeak;
+        }
 
-            float duckGain = Ducker.Update(blockPeak, frames, AudioConstants.SampleRate);
+        if (_duckTargets.Length > 0)
+        {
+            // Deux raisons de baisser les sons du PC : tu parles, ou un extrait joue.
+            // C'est la plus forte des deux baisses qui s'applique.
+            float voiceGain = Ducker.Update(voicePeak, frames, AudioConstants.SampleRate);
+            float soundGain = _soundboardKey != null
+                ? SoundboardDucker.Update(soundboardPeak, frames, AudioConstants.SampleRate)
+                : 1f;
+            float duckGain = MathF.Min(voiceGain, soundGain);
             for (int t = 0; t < _duckTargets.Length; t++) _duckTargets[t].ExternalGain = duckGain;
         }
 

@@ -23,7 +23,7 @@ public sealed class PitchShiftEffect : VoiceEffect
         _semitones = Parameters[0];
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         float ratio = MathF.Pow(2f, _semitones.Value / 12f);
         float rate = (1f - ratio) / _window;

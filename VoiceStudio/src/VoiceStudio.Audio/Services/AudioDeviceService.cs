@@ -23,6 +23,21 @@ public sealed class AudioDeviceService : IDisposable
 
     public IReadOnlyList<AudioDeviceInfo> GetOutputs() => Enumerate(DataFlow.Render);
 
+    /// <summary>Périphérique de sortie par défaut de Windows, ou null.</summary>
+    public MMDevice? OpenDefaultOutput()
+    {
+        try
+        {
+            return _enumerator.HasDefaultAudioEndpoint(DataFlow.Render, Role.Console)
+                ? _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console)
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>Cherche l'entrée de VB-CABLE (« CABLE Input ») parmi les sorties.</summary>
     public AudioDeviceInfo? FindVirtualCable() =>
         GetOutputs().FirstOrDefault(device => device.IsVirtualCable);

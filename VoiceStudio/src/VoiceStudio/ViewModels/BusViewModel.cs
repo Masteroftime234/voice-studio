@@ -53,6 +53,28 @@ public sealed class BusViewModel : ObservableObject
         }
     }
 
+    /// <summary>Écouter ce bus seul : tous les autres se taisent.</summary>
+    public bool IsSolo
+    {
+        get => _bus.Channel.Solo;
+        set
+        {
+            _bus.Channel.Solo = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Forcer ce bus au centre, quand le son n'arrive que d'un côté.</summary>
+    public bool IsMono
+    {
+        get => _bus.Channel.Mono;
+        set
+        {
+            _bus.Channel.Mono = value;
+            OnPropertyChanged();
+        }
+    }
+
     public double Level
     {
         get => _level;

@@ -17,6 +17,7 @@ public partial class App : Application
 
         DispatcherUnhandledException += (_, args) =>
         {
+            Journal.Write("Erreur non gérée", args.Exception);
             MessageBox.Show(args.Exception.Message, "Voice Studio — erreur",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
@@ -29,6 +30,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
+            Journal.Write("Démarrage impossible", ex);
             MessageBox.Show("Impossible d'initialiser l'audio : " + ex.Message, "Voice Studio",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
@@ -60,6 +62,28 @@ public partial class App : Application
                 Filter = "Fichiers audio|*.wav;*.mp3;*.m4a;*.aac;*.wma;*.flac;*.ogg|Tous les fichiers|*.*"
             };
             return dialog.ShowDialog() == true ? dialog.FileNames : [];
+        }
+
+        public string? PickSettingsFileToOpen()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Choisir une sauvegarde de réglages",
+                Filter = "Réglages Voice Studio|*.json|Tous les fichiers|*.*"
+            };
+            return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+
+        public string? PickSettingsFileToSave(string suggestedName)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = "Enregistrer les réglages",
+                FileName = suggestedName,
+                DefaultExt = ".json",
+                Filter = "Réglages Voice Studio|*.json"
+            };
+            return dialog.ShowDialog() == true ? dialog.FileName : null;
         }
     }
 }

@@ -10,15 +10,20 @@ Applications du PC (sauf Discord) ───┘     (VB-CABLE, le câble virtuel)
 
 ## Ce que fait l'application
 
-Six pages, en onglets en haut de la fenêtre.
+Sept pages, en onglets en haut de la fenêtre.
+
+**Démarrage** — configuration guidée au premier lancement, en quatre étapes : installer le câble virtuel (avec détection automatique), choisir le micro, choisir la sortie, régler Discord. L'onglet disparaît une fois terminé.
 
 **Simple** — la page d'accueil, pour ne rien avoir à comprendre : tes deux périphériques, trois volumes (ta voix, les sons du PC, le général) et le réglage de Discord. Les autres onglets ne servent qu'au détail.
 
-**Mixer** — une table de mixage à tranches verticales : volume général, micro, soundboard, puis quatre bus — **Jeu, Chat, Média, Autres**. Chaque application qui joue vraiment du son apparaît sous forme d'étiquette dans un bus et se **fait glisser d'un bus à l'autre** à la souris ; le volume se règle au fader du bus. Une application qui garde un flux ouvert sans rien jouer (Steam, les utilitaires de carte son) n'apparaît pas ; une application qui se tait disparaît au bout de 30 secondes. Le classement de départ se fait sur le nom (Spotify et les navigateurs vont dans Média) ; ton rangement est retenu d'une session à l'autre. Une colonne « Hors du mix » montre les applications qui jouent du son mais restent exclues, Discord en tête.
+**Mixer** — une table de mixage à tranches verticales, avec solo et mono par tranche : volume général, micro, soundboard, puis quatre bus — **Jeu, Chat, Média, Autres**. Chaque application qui joue vraiment du son apparaît sous forme d'étiquette dans un bus et se **fait glisser d'un bus à l'autre** à la souris ; le volume se règle au fader du bus. Une application qui garde un flux ouvert sans rien jouer (Steam, les utilitaires de carte son) n'apparaît pas ; une application qui se tait disparaît au bout de 30 secondes. Le classement de départ se fait sur le nom (Spotify et les navigateurs vont dans Média) ; ton rangement est retenu d'une session à l'autre. Une colonne « Hors du mix » montre les applications qui jouent du son mais restent exclues, Discord en tête.
 
-**Voix** — effets vocaux appliqués à ta voix : hauteur (grave/aiguë sans changer la vitesse), filtre, robot, distorsion, radio, téléphone, écho, réverbération. Combinables, avec 10 presets fournis et tes propres presets enregistrables.
+**Voix** — effets vocaux appliqués à ta voix : anti-pop, compresseur, dé-esseur, hauteur (grave/aiguë sans changer la vitesse), filtre, robot, distorsion, radio, téléphone, écho, réverbération. Chaque effet a un dosage sec/humide. Combinables, avec 10 presets fournis, tes propres presets, et un bouton « Au hasard ».
 
 **Micro** — le volume et le nettoyage du son :
+- test du micro : cinq secondes enregistrées, réécoutées dans ton casque, puis un gain conseillé à appliquer d'un clic ;
+- niveau automatique : ta voix garde le même niveau, que tu parles fort ou doucement ;
+- baisse des autres sons pendant qu'un extrait du soundboard joue ;
 - niveau d'entrée Windows et gain logiciel de -12 à +24 dB, si on t'entend trop bas sur Discord ;
 - avertissement si le micro choisi est un périphérique virtuel (SteelSeries Sonar, VoiceMeeter…), cause fréquente de craquements ;
 - bascule micro / source : une touche coupe le micro et envoie à sa place un bus ou le soundboard ;
@@ -28,9 +33,13 @@ Six pages, en onglets en haut de la fenêtre.
 - baisse automatique de tous les bus quand tu parles ;
 - retour audio pour s'entendre dans son casque.
 
-**Soundboard** — bibliothèque d'extraits joués dans le micro virtuel : WAV, MP3 et les formats que Windows sait lire, volume par son, raccourci clavier par son, plusieurs sons à la fois.
+**Soundboard** — bibliothèque d'extraits joués dans le micro virtuel : WAV, MP3 et les formats que Windows sait lire, volume par son, découpe début/fin, fondus, lecture en boucle, raccourci clavier par son, plusieurs sons à la fois.
 
-**Réglages** — latence, casque de retour, applications exclues, aide pour Discord.
+**Réglages** — raccourcis clavier globaux (couper le micro, couper les sons, monter et baisser le volume), profils, panneau flottant, latence annoncée, mode compatibilité, casque de retour, applications exclues, sauvegarde et restauration des réglages, journal des erreurs, aide pour Discord.
+
+**Profils** — Discord, Gaming, Musique, Streaming, plus les tiens : un profil retient les volumes, le nettoyage du micro, les effets et la baisse automatique, et se rappelle d'un clic.
+
+**Panneau flottant** — un petit panneau toujours visible par-dessus les jeux : micro, sons du PC, effets, preset, démarrage. Déplaçable, redimensionnable, opacité réglable, touche de raccourci au choix.
 
 En cas de craquements, la page Micro affiche un compteur de coupures audio : s'il monte pendant que tu parles, augmente la latence de sortie dans Réglages.
 
@@ -38,7 +47,7 @@ Partout : Discord est exclu de la capture (liste modifiable), sinon les voix de 
 
 ### Reste à faire
 
-Overlay flottant, barre système, démarrage automatique, profils complets (Discord / Gaming / Musique…), thème clair.
+Barre système, démarrage automatique avec Windows, thème clair, égaliseur 3 bandes, visualiseur de spectre, bus renommables, sortie secondaire, dossiers de soundboard, mise à jour automatique.
 
 ## Installation
 
@@ -90,7 +99,7 @@ Pour que le micro s'appelle « Voice Studio Virtual Mic » dans Discord : Param�
 | Partie | Vérifié |
 |---|---|
 | Moteur audio (`VoiceStudio.Audio`) | Compilé sans erreur contre le code source de NAudio 2.2.1 |
-| Cœur du moteur (mixage, bus, bascule, limiteur, gain, effets, suppression de bruit, noise gate, ducking, push-to-talk, soundboard) | 83 tests automatiques, tous passent |
+| Cœur du moteur (mixage, bus, solo, mono, bascule, limiteur, gain, effets, compresseur, dé-esseur, niveau automatique, suppression de bruit, noise gate, ducking, push-to-talk, soundboard, test micro) | 101 tests automatiques, tous passent |
 | ViewModels et réglages | Compilés sans erreur |
 | Fenêtre WPF (XAML, `App.xaml.cs`, `MainWindow.xaml.cs`) | **Non compilée** : WPF ne se compile que sous Windows |
 | Capture réelle (micro, applications), sortie VB-CABLE, Discord | **Non testée** : demande un PC Windows avec du son |
@@ -113,7 +122,8 @@ src/VoiceStudio.Audio/          Moteur audio — aucune dépendance à l'interfa
                                 VoiceEffectsService, SoundboardService, MonitorService
 src/VoiceStudio/                Application WPF (MVVM)
   Resources/app.ico             Logo : icône du fichier, de la fenêtre et de l'installateur
-  Views/                        Les cinq pages (Mixer, Voix, Micro, Soundboard, Réglages)
+  Views/                        Les sept pages (Démarrage, Simple, Mixer, Voix, Micro, Soundboard, Réglages)
+  OverlayWindow.xaml            Le panneau flottant
   ViewModels/  Settings/  Helpers/  Resources/Theme.xaml  MainWindow.xaml
 tests/VoiceStudio.SelfTest/     Tests du moteur
 ```

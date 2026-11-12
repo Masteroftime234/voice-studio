@@ -93,6 +93,7 @@ public sealed class VoiceFxViewModel : ObservableObject
         if (_selectedPreset != null) service.ApplyPreset(_selectedPreset);
 
         ResetCommand = new RelayCommand(Reset);
+        RandomCommand = new RelayCommand(PickRandomPreset, () => Presets.Count > 1);
         SavePresetCommand = new RelayCommand(SavePreset, () => NewPresetName.Trim().Length > 0);
         DeletePresetCommand = new RelayCommand(DeletePreset,
             () => SelectedPreset is { IsBuiltIn: false });
@@ -102,6 +103,7 @@ public sealed class VoiceFxViewModel : ObservableObject
     public ObservableCollection<VoicePreset> Presets { get; } = [];
 
     public RelayCommand ResetCommand { get; }
+    public RelayCommand RandomCommand { get; }
     public RelayCommand SavePresetCommand { get; }
     public RelayCommand DeletePresetCommand { get; }
 
@@ -139,6 +141,14 @@ public sealed class VoiceFxViewModel : ObservableObject
             if (!SetProperty(ref _newPresetName, value)) return;
             SavePresetCommand.RaiseCanExecuteChanged();
         }
+    }
+
+    /// <summary>Choisit un preset au hasard, différent de celui en cours.</summary>
+    private void PickRandomPreset()
+    {
+        var others = Presets.Where(preset => preset != SelectedPreset).ToList();
+        if (others.Count == 0) return;
+        SelectedPreset = others[Random.Shared.Next(others.Count)];
     }
 
     private void Reset()

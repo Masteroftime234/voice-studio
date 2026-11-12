@@ -115,6 +115,39 @@
                 </StackPanel>
             </Border>
 
+            <!-- Test du micro -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Tester mon micro" Style="{StaticResource TitleText}" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0" MaxWidth="620"
+                               HorizontalAlignment="Left"
+                               Text="Cinq secondes d'enregistrement, puis Voice Studio te réécoute telle que Discord t'entend — effets et nettoyage compris — et te dit s'il faut changer le gain. Personne d'autre n'entend cette réécoute." />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Button Content="Lancer le test" Command="{Binding StartTestCommand}"
+                                Style="{StaticResource PrimaryButton}" Padding="18,9" Margin="0,0,12,0" />
+                        <TextBlock Text="{Binding TestState}" Foreground="{StaticResource AccentBrush}"
+                                   FontSize="13" VerticalAlignment="Center"
+                                   Visibility="{Binding IsTestRunning,
+                                                Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+
+                    <Border Background="{StaticResource ControlBrush}" CornerRadius="10" Padding="14,12"
+                            Margin="0,16,0,0" HorizontalAlignment="Left" MaxWidth="620"
+                            Visibility="{Binding HasTestResult, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding TestSuggestionText}" Style="{StaticResource BodyText}" />
+                            <TextBlock Text="{Binding TestLevelsText}" Style="{StaticResource MutedText}"
+                                       Margin="0,6,0,0" />
+                            <Button Content="Appliquer le gain conseillé"
+                                    Command="{Binding ApplySuggestedGainCommand}"
+                                    Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"
+                                    Margin="0,12,0,0" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
             <!-- Suppression du bruit -->
             <Border Style="{StaticResource Card}">
                 <StackPanel>
@@ -157,6 +190,39 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Niveau automatique -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Niveau automatique" Style="{StaticResource TitleText}" />
+                            <TextBlock Style="{StaticResource MutedText}" Margin="0,4,12,0"
+                                       Text="Maintient ta voix au même niveau, que tu parles fort ou doucement, que tu sois près ou loin du micro. Le gain ne bouge que lentement et jamais pendant les silences." />
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" Style="{StaticResource Switch}"
+                                      IsChecked="{Binding AutoLevelEnabled}" VerticalAlignment="Top" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Niveau visé" Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" />
+                        <Slider Grid.Column="1" Style="{StaticResource VolumeSlider}" Minimum="-40" Maximum="-6"
+                                Value="{Binding AutoLevelTargetDb}" />
+                        <TextBlock Grid.Column="2" Text="{Binding AutoLevelTargetText}"
+                                   Style="{StaticResource BodyText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
                 </StackPanel>
             </Border>
 
@@ -283,6 +349,40 @@
                         <Slider Grid.Column="1" Style="{StaticResource VolumeSlider}" Minimum="50" Maximum="3000"
                                 Value="{Binding DuckingReleaseMs}" />
                         <TextBlock Grid.Column="2" Text="{Binding DuckingReleaseText}"
+                                   Style="{StaticResource BodyText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Baisse pendant un extrait -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Baisser les sons pendant un extrait"
+                                       Style="{StaticResource TitleText}" />
+                            <TextBlock Style="{StaticResource MutedText}" Margin="0,4,12,0"
+                                       Text="Quand tu lances un son du soundboard, la musique et les jeux reculent le temps qu'il passe." />
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" Style="{StaticResource Switch}"
+                                      IsChecked="{Binding SoundboardDuckingEnabled}" VerticalAlignment="Top" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="190" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Volume pendant l'extrait"
+                                   Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                        <Slider Grid.Column="1" Style="{StaticResource VolumeSlider}" Minimum="0" Maximum="100"
+                                Value="{Binding SoundboardDuckingMinimum}" />
+                        <TextBlock Grid.Column="2" Text="{Binding SoundboardDuckingMinimumText}"
                                    Style="{StaticResource BodyText}" HorizontalAlignment="Right"
                                    VerticalAlignment="Center" />
                     </Grid>

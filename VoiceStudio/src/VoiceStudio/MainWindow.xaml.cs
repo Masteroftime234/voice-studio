@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -8,6 +9,7 @@ namespace VoiceStudio;
 public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _meterTimer;
+    private OverlayWindow? _overlay;
 
     public MainWindow()
     {
@@ -21,10 +23,73 @@ public partial class MainWindow : Window
         };
         _meterTimer.Tick += (_, _) => (DataContext as MainViewModel)?.RefreshMeters();
 
-        Loaded += (_, _) => _meterTimer.Start();
-        Closed += (_, _) => _meterTimer.Stop();
+        Loaded += (_, _) =>
+        {
+            _meterTimer.Start();
+            AttachModel();
+        };
+        DataContextChanged += (_, _) => AttachModel();
+        Closed += (_, _) =>
+        {
+            _meterTimer.Stop();
+            CloseOverlay();
+        };
         StateChanged += OnWindowStateChanged;
         PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    private MainViewModel? _model;
+
+    /// <summary>Relie la fenêtre au modèle : panneau flottant et réglages d'apparence.</summary>
+    private void AttachModel()
+    {
+        if (DataContext is not MainViewModel model || ReferenceEquals(model, _model)) return;
+
+        if (_model != null)
+        {
+            _model.PropertyChanged -= OnModelPropertyChanged;
+            _model.SettingsPage.OverlayAppearanceChanged -= OnOverlayAppearanceChanged;
+        }
+
+        _model = model;
+        model.PropertyChanged += OnModelPropertyChanged;
+        model.SettingsPage.OverlayAppearanceChanged += OnOverlayAppearanceChanged;
+        UpdateOverlay();
+    }
+
+    private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.IsOverlayVisible)) UpdateOverlay();
+    }
+
+    private void OnOverlayAppearanceChanged() => _overlay?.ApplyAppearance();
+
+    private void UpdateOverlay()
+    {
+        if (_model == null) return;
+
+        if (!_model.IsOverlayVisible)
+        {
+            CloseOverlay();
+            return;
+        }
+
+        if (_overlay == null)
+        {
+            _overlay = new OverlayWindow(_model) { Owner = null };
+            _overlay.Closed += (_, _) => _overlay = null;
+        }
+        _overlay.Show();
+        _overlay.Activate();
+    }
+
+    private void CloseOverlay()
+    {
+        if (_overlay == null) return;
+        _overlay.SavePlacement();
+        var overlay = _overlay;
+        _overlay = null;
+        overlay.Close();
     }
 
     private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -51,8 +116,11 @@ public partial class MainWindow : Window
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         bool capturingPushToTalk = model.Microphone.IsCapturingKey;
         bool capturingSwitch = model.Microphone.IsCapturingSwitchKey;
+        bool capturingOverlay = model.SettingsPage.IsCapturingOverlayKey;
+        var capturingAction = model.Hotkeys.Capturing;
         var capturingSound = model.Soundboard.Sounds.FirstOrDefault(sound => sound.IsCapturingKey);
-        if (!capturingPushToTalk && !capturingSwitch && capturingSound == null) return;
+        if (!capturingPushToTalk && !capturingSwitch && !capturingOverlay &&
+            capturingAction == null && capturingSound == null) return;
 
         e.Handled = true;
 
@@ -60,6 +128,8 @@ public partial class MainWindow : Window
         {
             model.Microphone.IsCapturingKey = false;
             model.Microphone.IsCapturingSwitchKey = false;
+            model.SettingsPage.IsCapturingOverlayKey = false;
+            if (capturingAction != null) capturingAction.IsCapturing = false;
             if (capturingSound != null) capturingSound.IsCapturingKey = false;
             return;
         }
@@ -69,6 +139,8 @@ public partial class MainWindow : Window
 
         if (capturingPushToTalk) model.Microphone.SetPushToTalkKey(virtualKey, name);
         else if (capturingSwitch) model.Microphone.SetSwitchKey(virtualKey, name);
+        else if (capturingOverlay) model.SettingsPage.SetOverlayKey(virtualKey, name);
+        else if (capturingAction != null) model.Hotkeys.SetKey(capturingAction, virtualKey, name);
         else if (capturingSound != null) model.Soundboard.SetHotkey(capturingSound, virtualKey, name);
     }
 }

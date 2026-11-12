@@ -38,6 +38,9 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                <Button Content="&#xE7C4;" Style="{StaticResource TitleBarButton}"
+                        Command="{Binding ToggleOverlayCommand}"
+                        ToolTip="Afficher ou masquer le panneau flottant" />
                 <Button Content="&#xE921;" Style="{StaticResource TitleBarButton}" Click="OnMinimize"
                         ToolTip="Réduire" />
                 <Button x:Name="MaximizeButton" Content="&#xE922;" Style="{StaticResource TitleBarButton}"
@@ -87,6 +90,11 @@
 
         <!-- Onglets -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="24,18,26,14">
+            <RadioButton Style="{StaticResource NavTab}" Content="Démarrage" Command="{Binding GoToCommand}"
+                         CommandParameter="demarrage"
+                         Visibility="{Binding SetupPending, Converter={StaticResource BoolToVisibility}}"
+                         IsChecked="{Binding Section, Mode=OneWay, Converter={StaticResource SectionToBoolean},
+                                     ConverterParameter=demarrage}" />
             <RadioButton Style="{StaticResource NavTab}" Content="Simple" Command="{Binding GoToCommand}"
                          CommandParameter="simple"
                          IsChecked="{Binding Section, Mode=OneWay, Converter={StaticResource SectionToBoolean},
@@ -130,6 +138,8 @@
 
         <!-- Pages -->
         <Grid Grid.Row="4" Margin="26,0,26,22">
+            <views:SetupView Visibility="{Binding Section, Converter={StaticResource SectionToVisibility},
+                                          ConverterParameter=demarrage}" />
             <views:SimpleView Visibility="{Binding Section, Converter={StaticResource SectionToVisibility},
                                            ConverterParameter=simple}" />
             <views:MixerView Visibility="{Binding Section, Converter={StaticResource SectionToVisibility},

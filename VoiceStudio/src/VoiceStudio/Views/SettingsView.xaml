@@ -4,6 +4,153 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
         <StackPanel>
 
+            <!-- Raccourcis clavier -->
+            <Border Style="{StaticResource Card}" DataContext="{Binding Hotkeys}">
+                <StackPanel>
+                    <TextBlock Text="Raccourcis clavier" Style="{StaticResource TitleText}" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,12" MaxWidth="560"
+                               HorizontalAlignment="Left"
+                               Text="Ces touches fonctionnent même quand Voice Studio n'est pas au premier plan." />
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="260" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Label}" Style="{StaticResource BodyText}" />
+                                        <TextBlock Text="{Binding Description}" Style="{StaticResource MutedText}"
+                                                   Margin="0,2,12,0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Choisir" Style="{StaticResource IconButton}"
+                                            Margin="0,0,6,0" VerticalAlignment="Center"
+                                            Command="{Binding DataContext.CaptureCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" />
+                                    <Button Grid.Column="2" Content="Effacer" Style="{StaticResource IconButton}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"
+                                            Command="{Binding DataContext.ClearCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" />
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding KeyText}" Style="{StaticResource BodyText}" />
+                                        <TextBlock Text="  •  appuie sur une touche…" FontSize="12"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   Visibility="{Binding IsCapturing,
+                                                                Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Profils -->
+            <Border Style="{StaticResource Card}" DataContext="{Binding Profiles}">
+                <StackPanel>
+                    <TextBlock Text="Profils" Style="{StaticResource TitleText}" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0" MaxWidth="560"
+                               HorizontalAlignment="Left"
+                               Text="Un profil retient d'un coup les volumes, le nettoyage du micro, les effets et la baisse automatique. Quatre sont fournis ; tu peux créer les tiens." />
+
+                    <Grid Margin="0,16,0,0" HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="300" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Grid.Column="0" Style="{StaticResource DarkCombo}"
+                                  ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
+                                  DisplayMemberPath="Name" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                            <Button Content="Appliquer" Command="{Binding ApplyCommand}"
+                                    Style="{StaticResource PrimaryButton}" Padding="16,0" Height="36"
+                                    Margin="0,0,8,0" />
+                            <Button Content="Mettre à jour" Command="{Binding UpdateCommand}"
+                                    Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,8,0" />
+                            <Button Content="Supprimer" Command="{Binding DeleteCommand}"
+                                    Style="{StaticResource SecondaryButton}" Height="36" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,14,0,0" HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="300" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Style="{StaticResource DarkTextBox}" Height="36"
+                                 VerticalContentAlignment="Center"
+                                 Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Grid.Column="1" Content="Créer à partir des réglages actuels"
+                                Command="{Binding CreateCommand}" Style="{StaticResource SecondaryButton}"
+                                Height="36" Margin="10,0,0,0" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding Message}" Style="{StaticResource MutedText}" Margin="0,12,0,0"
+                               Visibility="{Binding HasMessage, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Panneau flottant -->
+            <Border Style="{StaticResource Card}" DataContext="{Binding SettingsPage}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Panneau flottant" Style="{StaticResource TitleText}" />
+                            <TextBlock Style="{StaticResource MutedText}" Margin="0,4,12,0" MaxWidth="520"
+                                       Text="Un petit panneau au-dessus des autres fenêtres, pour couper le micro ou changer un volume sans quitter ton jeu. Déplaçable et redimensionnable." />
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" Style="{StaticResource Switch}"
+                                      IsChecked="{Binding DataContext.IsOverlayVisible,
+                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      VerticalAlignment="Top" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Button Content="Choisir la touche" Command="{Binding CaptureOverlayKeyCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,10,0" />
+                        <Button Content="Effacer" Command="{Binding ClearOverlayKeyCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,14,0" />
+                        <TextBlock Text="{Binding OverlayKeyText}" Style="{StaticResource BodyText}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="Appuie maintenant sur la touche de ton choix…" FontSize="12"
+                               Foreground="{StaticResource AccentBrush}" Margin="0,10,0,0"
+                               Visibility="{Binding IsCapturingOverlayKey,
+                                            Converter={StaticResource BoolToVisibility}}" />
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="300" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Opacité" Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" />
+                        <Slider Grid.Column="1" Style="{StaticResource VolumeSlider}" Minimum="20" Maximum="100"
+                                Value="{Binding OverlayOpacity}" />
+                        <TextBlock Grid.Column="2" Text="{Binding OverlayOpacityText}"
+                                   Style="{StaticResource BodyText}" VerticalAlignment="Center"
+                                   Margin="12,0,0,0" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <ToggleButton Style="{StaticResource Switch}" IsChecked="{Binding OverlayTopmost}"
+                                      Margin="0,0,12,0" />
+                        <TextBlock Text="Toujours au premier plan" Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource Card}" DataContext="{Binding SettingsPage}">
                 <StackPanel>
                     <TextBlock Text="Audio" Style="{StaticResource TitleText}" />
@@ -66,6 +213,25 @@
                                Text="3.  Désactive Krisp, l'annulation d'écho et le contrôle automatique du gain : ils coupent la musique. La page Micro de Voice Studio fait ce travail à leur place." />
                     <TextBlock Style="{StaticResource BodyText}"
                                Text="4.  Sensibilité de la voix : règle-la à la main, assez bas pour que la musique passe." />
+                </StackPanel>
+            </Border>
+
+            <!-- Sauvegarde et journal -->
+            <Border Style="{StaticResource Card}" DataContext="{Binding SettingsPage}">
+                <StackPanel>
+                    <TextBlock Text="Sauvegarde et dépannage" Style="{StaticResource TitleText}" />
+                    <TextBlock Text="{Binding LatencyText}" Style="{StaticResource MutedText}" Margin="0,10,0,0" />
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Sauvegarder mes réglages" Command="{Binding ExportCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,8,0" />
+                        <Button Content="Restaurer une sauvegarde" Command="{Binding ImportCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,8,0" />
+                        <Button Content="Ouvrir le journal des erreurs" Command="{Binding OpenJournalCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Message}" Style="{StaticResource MutedText}" Margin="0,12,0,0"
+                               TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left"
+                               Visibility="{Binding HasMessage, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
             </Border>
 

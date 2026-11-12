@@ -1,0 +1,132 @@
+<UserControl x:Class="VoiceStudio.Views.SetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid DataContext="{Binding Setup}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Première mise en route" Foreground="{StaticResource TextBrush}" FontSize="19"
+                       FontWeight="SemiBold" />
+            <TextBlock Text="{Binding StepLabel}" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Étape 1 : le câble virtuel -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" VerticalAlignment="Top"
+                Visibility="{Binding Step, Converter={StaticResource SectionToVisibility}, ConverterParameter=0}">
+            <StackPanel>
+                <TextBlock Text="Installer le câble virtuel" Style="{StaticResource TitleText}" />
+                <TextBlock Style="{StaticResource BodyText}" Margin="0,10,0,0" MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Text="Discord ne sait écouter qu'un micro. Voice Studio a donc besoin d'un micro virtuel : c'est le rôle de VB-CABLE, un petit pilote gratuit. Sans lui, l'application n'a nulle part où envoyer le son." />
+                <TextBlock Style="{StaticResource MutedText}" Margin="0,12,0,0" MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Text="Télécharge l'archive, extrais-la, puis lance VBCABLE_Setup_x64.exe en tant qu'administrateur. Redémarre ensuite le PC : Windows ne voit le nouveau périphérique qu'après." />
+
+                <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                    <Button Content="Ouvrir vb-audio.com/Cable" Command="{Binding OpenCableSiteCommand}"
+                            Style="{StaticResource PrimaryButton}" Margin="0,0,10,0" />
+                    <Button Content="Revérifier" Command="{Binding RecheckCommand}"
+                            Style="{StaticResource SecondaryButton}" Height="40" />
+                </StackPanel>
+
+                <Border CornerRadius="10" Padding="14,12" Margin="0,18,0,0" HorizontalAlignment="Left">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{StaticResource WarningSurfaceBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CableReady}" Value="True">
+                                    <Setter Property="Background" Value="#13311F" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding CableStatus}" FontSize="13" TextWrapping="Wrap" MaxWidth="560">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CableReady}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Étape 2 : le micro -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" VerticalAlignment="Top"
+                Visibility="{Binding Step, Converter={StaticResource SectionToVisibility}, ConverterParameter=1}">
+            <StackPanel DataContext="{Binding DataContext.Mixer, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <TextBlock Text="Choisir ton micro" Style="{StaticResource TitleText}" />
+                <TextBlock Style="{StaticResource BodyText}" Margin="0,10,0,14" MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Text="Celui dans lequel tu parles. Si tu utilises un logiciel comme SteelSeries Sonar ou VoiceMeeter et que tu tiens à son traitement, choisis son entrée ; sinon, prends ton micro physique." />
+                <ComboBox Style="{StaticResource DarkCombo}" ItemsSource="{Binding Microphones}"
+                          SelectedItem="{Binding SelectedMicrophone}" DisplayMemberPath="Name"
+                          Width="440" HorizontalAlignment="Left" />
+            </StackPanel>
+        </Border>
+
+        <!-- Étape 3 : la sortie -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" VerticalAlignment="Top"
+                Visibility="{Binding Step, Converter={StaticResource SectionToVisibility}, ConverterParameter=2}">
+            <StackPanel DataContext="{Binding DataContext.Mixer, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <TextBlock Text="Choisir la sortie vers Discord" Style="{StaticResource TitleText}" />
+                <TextBlock Style="{StaticResource BodyText}" Margin="0,10,0,14" MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Text="Choisis « CABLE Input ». C'est l'entrée du câble virtuel : tout ce que Voice Studio mélange y sera envoyé, et Discord écoutera l'autre bout." />
+                <ComboBox Style="{StaticResource DarkCombo}" ItemsSource="{Binding Outputs}"
+                          SelectedItem="{Binding SelectedOutput}" DisplayMemberPath="Name"
+                          Width="440" HorizontalAlignment="Left" />
+            </StackPanel>
+        </Border>
+
+        <!-- Étape 4 : Discord -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" VerticalAlignment="Top"
+                Visibility="{Binding Step, Converter={StaticResource SectionToVisibility}, ConverterParameter=3}">
+            <StackPanel>
+                <TextBlock Text="Régler Discord" Style="{StaticResource TitleText}" />
+                <TextBlock Style="{StaticResource BodyText}" Margin="0,12,0,8"
+                           Text="1.  Paramètres utilisateur → Voix et vidéo." />
+                <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,8"
+                           Text="2.  Périphérique d'entrée : CABLE Output (VB-Audio Virtual Cable)." />
+                <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,8" MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Text="3.  Désactive Krisp, l'annulation d'écho et le contrôle automatique du gain. Ces outils sont faits pour une voix seule : ils hachent la musique. La page Micro de Voice Studio fait ce travail à leur place." />
+                <TextBlock Style="{StaticResource BodyText}" MaxWidth="620" HorizontalAlignment="Left"
+                           Text="4.  Sensibilité de la voix : règle-la à la main, assez bas pour que la musique passe." />
+                <TextBlock Style="{StaticResource MutedText}" Margin="0,16,0,0" MaxWidth="620"
+                           HorizontalAlignment="Left"
+                           Text="C'est tout. Tu peux revenir à cette page plus tard : elle reste accessible tant que tu n'as pas cliqué sur Terminer." />
+            </StackPanel>
+        </Border>
+
+        <!-- Navigation -->
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Content="Passer la configuration" Command="{Binding SkipCommand}"
+                    Style="{StaticResource SecondaryButton}" Height="40" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button Content="Précédent" Command="{Binding BackCommand}"
+                        Style="{StaticResource SecondaryButton}" Height="40" Margin="0,0,10,0" />
+                <Button Content="Suivant" Command="{Binding NextCommand}"
+                        Style="{StaticResource PrimaryButton}" MinWidth="130"
+                        Visibility="{Binding IsLastStep, Converter={StaticResource NotBoolToVisibility}}" />
+                <Button Content="Terminer" Command="{Binding FinishCommand}"
+                        Style="{StaticResource PrimaryButton}" MinWidth="130"
+                        Visibility="{Binding IsLastStep, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

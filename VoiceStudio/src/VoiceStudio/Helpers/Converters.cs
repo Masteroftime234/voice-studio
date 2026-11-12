@@ -63,3 +63,16 @@ public sealed class ResourceLookupConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         Binding.DoNothing;
 }
+
+/// <summary>Transforme un pourcentage (0 à 100) en fraction (0 à 1) : opacité de l'overlay.</summary>
+public sealed class PercentToFractionConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        double percent = value is double d ? d : 100;
+        return Math.Clamp(percent, 20, 100) / 100.0;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        Binding.DoNothing;
+}

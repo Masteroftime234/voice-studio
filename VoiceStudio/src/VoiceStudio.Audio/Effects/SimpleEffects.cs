@@ -19,7 +19,7 @@ public sealed class FilterEffect : VoiceEffect
         _resonance = Parameters[2];
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         float mode = _mode.Value >= 0.5f ? 1f : 0f, cutoff = _cutoff.Value, resonance = _resonance.Value;
         if (mode != _lastMode || cutoff != _lastCutoff || resonance != _lastResonance)
@@ -52,7 +52,7 @@ public sealed class RobotEffect : VoiceEffect
         _mix = Parameters[1];
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         float step = 2f * MathF.PI * _frequency.Value / _sampleRate;
         float mix = _mix.Value;
@@ -81,7 +81,7 @@ public sealed class DistortionEffect : VoiceEffect
         _level = Parameters[1];
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         float drive = _drive.Value, level = _level.Value;
         for (int i = 0; i < samples.Length; i++) samples[i] = MathF.Tanh(samples[i] * drive) * level;
@@ -102,7 +102,7 @@ public sealed class RadioEffect : VoiceEffect
         _lowPass.SetLowPass(sampleRate, 2800f, 0.9f);
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         float drive = _drive.Value;
         float makeup = 1.4f / MathF.Sqrt(drive);
@@ -133,7 +133,7 @@ public sealed class TelephoneEffect : VoiceEffect
         _lowPass2.SetLowPass(sampleRate, 3400f, 0.8f);
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         for (int i = 0; i < samples.Length; i++)
         {
@@ -171,7 +171,7 @@ public sealed class EchoEffect : VoiceEffect
         _mix = Parameters[2];
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         int delaySamples = Math.Clamp((int)(_delay.Value * _sampleRate / 1000f), 1, _buffer.Length - 1);
         float feedback = _feedback.Value, mix = _mix.Value;
@@ -214,7 +214,7 @@ public sealed class ReverbEffect : VoiceEffect
         _mix = Parameters[1];
     }
 
-    public override void Process(Span<float> samples)
+    protected override void Process(Span<float> samples)
     {
         float feedback = 0.70f + 0.28f * _room.Value;
         float mix = _mix.Value;

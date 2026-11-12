@@ -28,6 +28,7 @@ public sealed class AudioMixerService
 
         // Quand on parle, seuls les bus d'applications reculent : pas le soundboard.
         Engine.ConfigureDucking(Microphone, Buses.Select(bus => bus.Channel).ToArray());
+        Engine.ConfigureSoundboardDucking(Soundboard);
     }
 
     public MixerChannel Microphone { get; }

@@ -15,6 +15,7 @@ public sealed class ChannelViewModel : ObservableObject
     private readonly Func<bool> _readMuted;
     private readonly Action<bool> _writeMuted;
     private readonly Func<float> _readPeak;
+    private readonly MixerChannel? _channel;
     private double _level;
 
     public ChannelViewModel(MixerChannel channel, string title, string subtitle)
@@ -22,6 +23,7 @@ public sealed class ChannelViewModel : ObservableObject
                () => channel.Muted, muted => channel.Muted = muted,
                () => channel.Peak, title, subtitle)
     {
+        _channel = channel;
     }
 
     public ChannelViewModel(AppAudioSource source)
@@ -72,6 +74,33 @@ public sealed class ChannelViewModel : ObservableObject
         set
         {
             _writeMuted(value);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Cette tranche peut être écoutée seule ou passée en mono.</summary>
+    public bool HasRouting => _channel != null;
+
+    /// <summary>Écouter cette tranche seule.</summary>
+    public bool IsSolo
+    {
+        get => _channel?.Solo ?? false;
+        set
+        {
+            if (_channel == null) return;
+            _channel.Solo = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Forcer cette source au centre, quand elle n'arrive que d'un côté.</summary>
+    public bool IsMono
+    {
+        get => _channel?.Mono ?? false;
+        set
+        {
+            if (_channel == null) return;
+            _channel.Mono = value;
             OnPropertyChanged();
         }
     }

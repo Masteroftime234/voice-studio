@@ -39,6 +39,9 @@
                                   SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="Name" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+                        <Button Content="Au hasard" Command="{Binding RandomCommand}"
+                                Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,8,0"
+                                ToolTip="Choisit un preset au hasard" />
                         <Button Content="Tout remettre à zéro" Command="{Binding ResetCommand}"
                                 Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,8,0" />
                         <Button Content="Supprimer le preset" Command="{Binding DeletePresetCommand}"

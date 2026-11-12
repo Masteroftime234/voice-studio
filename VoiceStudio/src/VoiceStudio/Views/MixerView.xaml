@@ -31,6 +31,14 @@
                     <ToggleButton Style="{StaticResource SmallMuteToggle}" IsChecked="{Binding IsMuted}"
                                   HorizontalAlignment="Center" Margin="0,14,0,0"
                                   ToolTip="Couper ou réactiver cette source" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                Visibility="{Binding HasRouting, Converter={StaticResource BoolToVisibility}}">
+                        <ToggleButton Content="S" Style="{StaticResource TinyToggle}" Margin="0,0,6,0"
+                                      IsChecked="{Binding IsSolo}"
+                                      ToolTip="Solo : n'entendre que cette source" />
+                        <ToggleButton Content="M" Style="{StaticResource TinyToggle}" IsChecked="{Binding IsMono}"
+                                      ToolTip="Mono : ramener le son au centre" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -79,8 +87,14 @@
                     </Grid>
 
                     <ToggleButton Style="{StaticResource SmallMuteToggle}" IsChecked="{Binding IsMuted}"
-                                  HorizontalAlignment="Center" Margin="0,14,0,12"
+                                  HorizontalAlignment="Center" Margin="0,14,0,8"
                                   ToolTip="Couper ou réactiver ce bus" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,12">
+                        <ToggleButton Content="S" Style="{StaticResource TinyToggle}" Margin="0,0,6,0"
+                                      IsChecked="{Binding IsSolo}" ToolTip="Solo : n'entendre que ce bus" />
+                        <ToggleButton Content="M" Style="{StaticResource TinyToggle}" IsChecked="{Binding IsMono}"
+                                      ToolTip="Mono : ramener le son au centre" />
+                    </StackPanel>
 
                     <TextBlock Text="APPLICATIONS" Style="{StaticResource SectionTitle}" Margin="0,0,0,6" />
                     <Border Background="#101018" CornerRadius="8" MinHeight="120" Padding="8">

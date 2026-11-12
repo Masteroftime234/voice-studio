@@ -19,11 +19,33 @@ public sealed class SoundEntry
     public int HotkeyVirtualKey { get; set; }
 
     public string HotkeyName { get; set; } = "";
+
+    /// <summary>Début de la découpe, en secondes (0 = depuis le début).</summary>
+    public double StartSeconds { get; set; }
+
+    /// <summary>Fin de la découpe, en secondes (0 = jusqu'au bout).</summary>
+    public double EndSeconds { get; set; }
+
+    /// <summary>Durée des fondus d'entrée et de sortie, en millisecondes.</summary>
+    public double FadeMs { get; set; }
+
+    /// <summary>Rejouer en boucle jusqu'à l'arrêt.</summary>
+    public bool Loop { get; set; }
+}
+
+/// <summary>Une touche associée à une action.</summary>
+public sealed class HotkeyBinding
+{
+    public int VirtualKey { get; set; }
+    public string KeyName { get; set; } = "";
 }
 
 /// <summary>Réglages enregistrés entre deux lancements.</summary>
 public sealed class AppSettings
 {
+    /// <summary>La configuration guidée du premier lancement a été terminée.</summary>
+    public bool SetupDone { get; set; }
+
     // --- Périphériques ---
     public string? MicrophoneId { get; set; }
     public string? OutputId { get; set; }
@@ -87,6 +109,32 @@ public sealed class AppSettings
     public bool EffectsEnabled { get; set; } = true;
     public string? SelectedPreset { get; set; }
     public List<VoiceStudio.Audio.Effects.VoicePreset> CustomPresets { get; set; } = [];
+
+    /// <summary>Raccourcis clavier, par identifiant d'action.</summary>
+    public Dictionary<string, HotkeyBinding> Hotkeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // --- Niveau automatique ---
+    public bool AutoLevelEnabled { get; set; }
+    public double AutoLevelTargetDb { get; set; } = -20;
+
+    // --- Baisse pendant un extrait du soundboard ---
+    public bool SoundboardDuckingEnabled { get; set; }
+    public double SoundboardDuckingMinimum { get; set; } = 30;
+
+    // --- Overlay ---
+    public bool OverlayVisible { get; set; }
+    public double OverlayOpacity { get; set; } = 90;
+    public bool OverlayTopmost { get; set; } = true;
+    public int OverlayVirtualKey { get; set; }
+    public string OverlayKeyName { get; set; } = "";
+    public double OverlayLeft { get; set; } = -1;
+    public double OverlayTop { get; set; } = -1;
+    public double OverlayWidth { get; set; } = 280;
+    public double OverlayHeight { get; set; } = 330;
+
+    // --- Profils ---
+    public List<Profile> CustomProfiles { get; set; } = [];
+    public string? SelectedProfile { get; set; }
 
     // --- Soundboard ---
     public List<SoundEntry> Sounds { get; set; } = [];

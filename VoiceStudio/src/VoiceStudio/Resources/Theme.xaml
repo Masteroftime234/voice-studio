@@ -35,6 +35,7 @@
     <helpers:EqualityToBooleanConverter x:Key="SectionToBoolean" />
     <helpers:ScaleConverter x:Key="Scale" />
     <helpers:ResourceLookupConverter x:Key="BrushByKey" />
+    <helpers:PercentToFractionConverter x:Key="PercentToFraction" />
 
     <!-- Textes -->
     <Style x:Key="SectionTitle" TargetType="TextBlock">
@@ -545,6 +546,34 @@
     <!-- Curseur fin, dans une étiquette d'application -->
     <Style x:Key="ThinSlider" TargetType="Slider" BasedOn="{StaticResource VolumeSlider}">
         <Setter Property="Height" Value="16" />
+    </Style>
+
+    <!-- Minuscule interrupteur à lettre : S pour solo, M pour mono -->
+    <Style x:Key="TinyToggle" TargetType="ToggleButton">
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Root" Background="{StaticResource ControlBrush}" CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{StaticResource MutedTextBrush}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Root" Property="TextElement.Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Petit bouton couper, sous une tranche verticale -->

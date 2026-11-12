@@ -11,9 +11,41 @@ public sealed class SettingsService
 
     public SettingsService(string? path = null)
     {
-        _path = path ?? Path.Combine(
+        _path = path ?? System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "VoiceStudio", "settings.json");
+    }
+
+    /// <summary>Emplacement du fichier de réglages, affiché dans l'application.</summary>
+    public string FilePath => _path;
+
+    /// <summary>Copie les réglages actuels dans un fichier choisi par l'utilisateur.</summary>
+    public bool Export(AppSettings settings, string path)
+    {
+        try
+        {
+            File.WriteAllText(path, JsonSerializer.Serialize(settings, JsonOptions));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Journal.Write("Sauvegarde des réglages impossible", ex);
+            return false;
+        }
+    }
+
+    /// <summary>Relit des réglages depuis un fichier. Retourne null si le fichier est illisible.</summary>
+    public AppSettings? Import(string path)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path));
+        }
+        catch (Exception ex)
+        {
+            Journal.Write("Lecture des réglages impossible", ex);
+            return null;
+        }
     }
 
     public AppSettings Load()
@@ -23,9 +55,9 @@ public sealed class SettingsService
             if (File.Exists(_path))
                 return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new AppSettings();
         }
-        catch
+        catch (Exception ex)
         {
-            // fichier illisible : on repart des réglages par défaut
+            Journal.Write("Réglages illisibles, retour aux valeurs par défaut", ex);
         }
         return new AppSettings();
     }
@@ -35,12 +67,13 @@ public sealed class SettingsService
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
             File.WriteAllText(_path, JsonSerializer.Serialize(settings, JsonOptions));
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Journal.Write("Enregistrement des réglages impossible", ex);
             return false;
         }
     }

@@ -1,0 +1,96 @@
+<Window x:Class="VoiceStudio.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Voice Studio" ShowInTaskbar="False" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="CanResizeWithGrip" MinWidth="240" MinHeight="260"
+        Width="280" Height="330" FontFamily="Segoe UI" TextOptions.TextFormattingMode="Display">
+
+    <Border Background="#E6101018" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+            CornerRadius="12" Padding="14,12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Barre de titre : sert aussi à déplacer le panneau -->
+            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="OnDragArea">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Image Grid.Column="0" Source="Resources/app.ico" Width="16" Height="16" Margin="0,0,8,0"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock Grid.Column="1" Text="Voice Studio" Foreground="{StaticResource TextBrush}"
+                           FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Content="✕" Click="OnClose" Style="{StaticResource IconButton}"
+                        Padding="8,2" FontSize="11" ToolTip="Masquer le panneau" />
+            </Grid>
+
+            <!-- État -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,12">
+                <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{StaticResource MutedTextBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                    <Setter Property="Fill" Value="{StaticResource WarningBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsOutputFlowing}" Value="True">
+                                    <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="{Binding OutputStatus}" Style="{StaticResource MutedText}" FontSize="11"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="2">
+                <!-- Micro -->
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Micro" Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" />
+                    <ToggleButton Grid.Column="1" Style="{StaticResource SmallMuteToggle}"
+                                  IsChecked="{Binding Mixer.Microphone.IsMuted}" />
+                </Grid>
+                <Slider Value="{Binding Mixer.Microphone.Volume}" Style="{StaticResource VolumeSlider}" />
+                <ProgressBar Value="{Binding Mixer.Microphone.Level, Mode=OneWay}"
+                             Style="{StaticResource LevelMeter}" Height="3" Margin="0,6,0,0" />
+
+                <!-- Sons du PC -->
+                <TextBlock Text="Sons du PC" Foreground="{StaticResource TextBrush}" FontSize="12"
+                           Margin="0,14,0,4" />
+                <Slider Value="{Binding Mixer.AppsVolume}" Style="{StaticResource VolumeSlider}" />
+                <ProgressBar Value="{Binding Mixer.AppsLevel, Mode=OneWay}" Style="{StaticResource LevelMeter}"
+                             Height="3" Margin="0,6,0,0" />
+
+                <!-- Effets -->
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Effets de voix" Foreground="{StaticResource TextBrush}"
+                               FontSize="12" VerticalAlignment="Center" />
+                    <ToggleButton Grid.Column="1" Style="{StaticResource Switch}"
+                                  IsChecked="{Binding VoiceFx.EffectsEnabled}" />
+                </Grid>
+                <ComboBox Style="{StaticResource DarkCombo}" Margin="0,8,0,0" Height="32"
+                          ItemsSource="{Binding VoiceFx.Presets}" SelectedItem="{Binding VoiceFx.SelectedPreset}"
+                          DisplayMemberPath="Name" />
+
+                <Button Content="{Binding ToggleLabel}" Command="{Binding ToggleEngineCommand}"
+                        Style="{StaticResource PrimaryButton}" Margin="0,14,0,0" Padding="16,8" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

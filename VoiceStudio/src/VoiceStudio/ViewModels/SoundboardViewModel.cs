@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using VoiceStudio.Audio;
+using VoiceStudio.Audio.Mixing;
 using VoiceStudio.Audio.Services;
 using VoiceStudio.Helpers;
 using VoiceStudio.Settings;
@@ -41,6 +43,60 @@ public sealed class SoundViewModel(SoundEntry entry) : ObservableObject
     public string VolumeText => $"{Volume:0} %";
 
     public string HotkeyText => Entry.HotkeyName.Length > 0 ? Entry.HotkeyName : "Pas de touche";
+
+    /// <summary>Début de la découpe, en secondes.</summary>
+    public double StartSeconds
+    {
+        get => Entry.StartSeconds;
+        set
+        {
+            Entry.StartSeconds = Math.Max(0, value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TrimText));
+        }
+    }
+
+    /// <summary>Fin de la découpe, en secondes (0 = jusqu'au bout).</summary>
+    public double EndSeconds
+    {
+        get => Entry.EndSeconds;
+        set
+        {
+            Entry.EndSeconds = Math.Max(0, value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TrimText));
+        }
+    }
+
+    public string TrimText => Entry.EndSeconds > 0
+        ? $"de {Entry.StartSeconds:0.0} s à {Entry.EndSeconds:0.0} s"
+        : Entry.StartSeconds > 0
+            ? $"à partir de {Entry.StartSeconds:0.0} s"
+            : "son entier";
+
+    /// <summary>Durée des fondus d'entrée et de sortie, en millisecondes.</summary>
+    public double FadeMs
+    {
+        get => Entry.FadeMs;
+        set
+        {
+            Entry.FadeMs = Math.Clamp(value, 0, 3000);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(FadeText));
+        }
+    }
+
+    public string FadeText => Entry.FadeMs <= 0 ? "sans fondu" : $"fondu {Entry.FadeMs:0} ms";
+
+    public bool Loop
+    {
+        get => Entry.Loop;
+        set
+        {
+            Entry.Loop = value;
+            OnPropertyChanged();
+        }
+    }
 
     public int HotkeyVirtualKey => Entry.HotkeyVirtualKey;
 
@@ -187,7 +243,16 @@ public sealed class SoundboardViewModel : ObservableObject
         try
         {
             sound.IsMissing = false;
-            bool started = await _service.PlayAsync(sound.Id, sound.Path, (float)(sound.Volume / 100.0));
+            int rate = AudioConstants.SampleRate * AudioConstants.Channels;
+            var options = new PlaybackOptions
+            {
+                Volume = (float)(sound.Volume / 100.0),
+                StartSample = (int)(sound.StartSeconds * rate),
+                EndSample = sound.EndSeconds > 0 ? (int)(sound.EndSeconds * rate) : int.MaxValue,
+                FadeSamples = (int)(sound.FadeMs / 1000.0 * rate),
+                Loop = sound.Loop
+            };
+            bool started = await _service.PlayAsync(sound.Id, sound.Path, options);
             if (!started)
             {
                 Message = $"Limite atteinte : {MaxSimultaneous} sons en même temps.";

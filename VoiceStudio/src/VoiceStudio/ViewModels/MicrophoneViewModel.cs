@@ -20,6 +20,8 @@ public sealed class MicrophoneViewModel : ObservableObject
     private long _dropouts;
     private double _windowsLevel = -1;
     private string? _micWarning;
+    private string? _testState;
+    private MicrophoneTestResult? _testResult;
 
     public MicrophoneViewModel(AudioEngine engine, AppSettings settings, Action applyMonitor, Action hotkeysChanged)
     {
@@ -33,6 +35,13 @@ public sealed class MicrophoneViewModel : ObservableObject
         var suppressor = engine.VoiceEffects.Chain.NoiseSuppression;
         suppressor.Enabled = settings.NoiseSuppressionEnabled;
         suppressor.Strength = (float)(settings.NoiseSuppressionStrength / 100.0);
+
+        var autoLevel = engine.VoiceEffects.Chain.AutoLevel;
+        autoLevel.Enabled = settings.AutoLevelEnabled;
+        autoLevel.TargetDb = (float)settings.AutoLevelTargetDb;
+
+        engine.Mixer.Engine.SoundboardDucker.Enabled = settings.SoundboardDuckingEnabled;
+        engine.Mixer.Engine.SoundboardDucker.MinimumVolume = (float)(settings.SoundboardDuckingMinimum / 100.0);
 
         var gate = engine.VoiceEffects.Chain.Gate;
         gate.Enabled = settings.NoiseGateEnabled;
@@ -57,6 +66,11 @@ public sealed class MicrophoneViewModel : ObservableObject
 
         CaptureKeyCommand = new RelayCommand(() => IsCapturingKey = true);
         ClearKeyCommand = new RelayCommand(() => SetPushToTalkKey(0, ""));
+        StartTestCommand = new RelayCommand(() => _ = RunTestAsync(), () => !IsTestRunning);
+        ApplySuggestedGainCommand = new RelayCommand(
+            () => { if (TestResult != null) MicrophoneGainDb = Math.Round(TestResult.SuggestedGainDb); },
+            () => TestResult != null);
+
         DismissWarningCommand = new RelayCommand(() =>
         {
             _settings.MicrophoneWarningDismissed = true;
@@ -89,7 +103,90 @@ public sealed class MicrophoneViewModel : ObservableObject
 
     public void RefreshDropouts() => Dropouts = _engine.Dropouts;
     public RelayCommand ClearKeyCommand { get; }
+    public RelayCommand StartTestCommand { get; }
+    public RelayCommand ApplySuggestedGainCommand { get; }
     public RelayCommand DismissWarningCommand { get; }
+
+    // --- Test du micro ---
+
+    /// <summary>Où en est le test : message affiché pendant son déroulement.</summary>
+    public string? TestState
+    {
+        get => _testState;
+        private set
+        {
+            if (!SetProperty(ref _testState, value)) return;
+            OnPropertyChanged(nameof(IsTestRunning));
+            StartTestCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool IsTestRunning => TestState != null;
+
+    public MicrophoneTestResult? TestResult
+    {
+        get => _testResult;
+        private set
+        {
+            if (!SetProperty(ref _testResult, value)) return;
+            OnPropertyChanged(nameof(HasTestResult));
+            OnPropertyChanged(nameof(TestLevelsText));
+            OnPropertyChanged(nameof(TestSuggestionText));
+            ApplySuggestedGainCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool HasTestResult => TestResult != null;
+
+    public string TestLevelsText => TestResult == null
+        ? ""
+        : $"Crête {TestResult.PeakDb:0} dB, moyenne {TestResult.RmsDb:0} dB.";
+
+    public string TestSuggestionText => TestResult == null
+        ? ""
+        : Math.Abs(TestResult.SuggestedGainDb - MicrophoneGainDb) < 1
+            ? TestResult.Verdict
+            : $"{TestResult.Verdict} Gain conseillé : {TestResult.SuggestedGainDb:+0;-0} dB.";
+
+    /// <summary>
+    /// Enregistre cinq secondes de voix telle qu'elle part vers Discord, la réécoute
+    /// dans le casque, puis propose un gain.
+    /// </summary>
+    private async Task RunTestAsync()
+    {
+        if (!_engine.IsRunning)
+        {
+            TestResult = null;
+            TestState = null;
+            MicrophoneWarning = "Démarre Voice Studio avant de lancer le test : il écoute ce qui part vraiment vers Discord.";
+            return;
+        }
+
+        TestResult = null;
+        try
+        {
+            _engine.StartMicrophoneTest(5);
+            for (int remaining = 5; remaining > 0; remaining--)
+            {
+                TestState = $"Parle normalement… {remaining} s";
+                await Task.Delay(1000).ConfigureAwait(true);
+            }
+
+            float[] samples = _engine.StopMicrophoneTest();
+            TestResult = MicrophoneTestResult.Analyse(samples, (float)MicrophoneGainDb);
+
+            TestState = "Réécoute : voilà ce que les autres entendent.";
+            await _engine.PlayTestAsync(samples, _settings.MonitorId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            MicrophoneWarning = "Le test n'a pas pu aller au bout : " + ex.Message;
+        }
+        finally
+        {
+            TestState = null;
+        }
+    }
     public RelayCommand CaptureSwitchKeyCommand { get; }
     public RelayCommand ClearSwitchKeyCommand { get; }
 
@@ -122,7 +219,7 @@ public sealed class MicrophoneViewModel : ObservableObject
     public string? MicrophoneWarning
     {
         get => _micWarning;
-        private set
+        set
         {
             if (!SetProperty(ref _micWarning, value)) return;
             OnPropertyChanged(nameof(HasMicrophoneWarning));
@@ -270,6 +367,62 @@ public sealed class MicrophoneViewModel : ObservableObject
         < 75 => "Équilibrée — recommandée",
         _ => "Maximale — la voix peut devenir un peu sourde"
     };
+
+    // --- Niveau automatique ---
+
+    /// <summary>Maintient ta voix à un niveau constant, que tu parles fort ou doucement.</summary>
+    public bool AutoLevelEnabled
+    {
+        get => _engine.VoiceEffects.Chain.AutoLevel.Enabled;
+        set
+        {
+            _engine.VoiceEffects.Chain.AutoLevel.Enabled = value;
+            _settings.AutoLevelEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double AutoLevelTargetDb
+    {
+        get => _engine.VoiceEffects.Chain.AutoLevel.TargetDb;
+        set
+        {
+            _engine.VoiceEffects.Chain.AutoLevel.TargetDb = (float)value;
+            _settings.AutoLevelTargetDb = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(AutoLevelTargetText));
+        }
+    }
+
+    public string AutoLevelTargetText => $"{AutoLevelTargetDb:0} dB";
+
+    // --- Baisse pendant un extrait ---
+
+    /// <summary>Baisser les sons du PC pendant qu'un extrait du soundboard joue.</summary>
+    public bool SoundboardDuckingEnabled
+    {
+        get => _engine.Mixer.Engine.SoundboardDucker.Enabled;
+        set
+        {
+            _engine.Mixer.Engine.SoundboardDucker.Enabled = value;
+            _settings.SoundboardDuckingEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double SoundboardDuckingMinimum
+    {
+        get => Math.Round(_engine.Mixer.Engine.SoundboardDucker.MinimumVolume * 100.0);
+        set
+        {
+            _engine.Mixer.Engine.SoundboardDucker.MinimumVolume = (float)(value / 100.0);
+            _settings.SoundboardDuckingMinimum = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SoundboardDuckingMinimumText));
+        }
+    }
+
+    public string SoundboardDuckingMinimumText => $"{SoundboardDuckingMinimum:0} %";
 
     // --- Noise gate ---
 

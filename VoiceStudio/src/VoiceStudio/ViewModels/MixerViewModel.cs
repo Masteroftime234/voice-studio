@@ -125,6 +125,13 @@ public sealed class MixerViewModel : ObservableObject
 
     public string AppsVolumeText => $"{AppsVolume:0} %";
 
+    /// <summary>Rafraîchit l'affichage du volume d'ensemble après un changement de profil.</summary>
+    public void RefreshAppsVolume()
+    {
+        OnPropertyChanged(nameof(AppsVolume));
+        OnPropertyChanged(nameof(AppsVolumeText));
+    }
+
     /// <summary>Niveau le plus fort parmi les bus, pour l'indicateur de la page Simple.</summary>
     public double AppsLevel
     {

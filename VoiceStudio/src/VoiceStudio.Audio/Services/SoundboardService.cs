@@ -24,11 +24,21 @@ public sealed class SoundboardService
             : Task.Run(() => _cache.GetOrAdd(path, Decode));
 
     /// <summary>Joue un fichier. Retourne false si la limite de sons simultanés est atteinte.</summary>
-    public async Task<bool> PlayAsync(string soundId, string path, float volume)
+    public async Task<bool> PlayAsync(string soundId, string path, float volume) =>
+        await PlayAsync(soundId, path, new PlaybackOptions { Volume = volume }).ConfigureAwait(false);
+
+    /// <summary>Joue un fichier avec ses réglages (découpe, fondus, boucle).</summary>
+    public async Task<bool> PlayAsync(string soundId, string path, PlaybackOptions options)
     {
         float[] data = await LoadAsync(path).ConfigureAwait(false);
-        return Mixer.Play(soundId, data, volume);
+        return Mixer.Play(soundId, data, options);
     }
+
+    /// <summary>Durée d'un fichier déjà chargé, en secondes (0 s'il est inconnu).</summary>
+    public double DurationOf(string path) =>
+        _cache.TryGetValue(path, out var data)
+            ? data.Length / (double)(AudioConstants.SampleRate * AudioConstants.Channels)
+            : 0;
 
     public void Stop(string soundId) => Mixer.Stop(soundId);
 

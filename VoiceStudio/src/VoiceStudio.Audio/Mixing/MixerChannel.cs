@@ -14,6 +14,8 @@ public sealed class MixerChannel
     private ISampleProvider? _source;
     private float _volume = 1f;
     private bool _muted;
+    private bool _solo;
+    private bool _mono;
     private float _externalGain = 1f;
     private float _routeGain = 1f;
     private float _currentGain;
@@ -54,6 +56,23 @@ public sealed class MixerChannel
         set => Volatile.Write(ref _muted, value);
     }
 
+    /// <summary>Écouter cette tranche seule : toutes les autres se taisent.</summary>
+    public bool Solo
+    {
+        get => Volatile.Read(ref _solo);
+        set => Volatile.Write(ref _solo, value);
+    }
+
+    /// <summary>
+    /// Forcer cette source en mono : les deux canaux deviennent identiques.
+    /// Utile quand un jeu ou un micro n'envoie le son que d'un côté.
+    /// </summary>
+    public bool Mono
+    {
+        get => Volatile.Read(ref _mono);
+        set => Volatile.Write(ref _mono, value);
+    }
+
     /// <summary>
     /// Gain supplémentaire piloté par le moteur (auto-ducking, push-to-talk) : 0 à 1.
     /// Se combine avec le volume réglé par l'utilisateur.
@@ -81,7 +100,7 @@ public sealed class MixerChannel
     /// Lit la source, applique le volume (avec rampe anti-clic) et additionne dans le mix.
     /// Retourne le niveau crête de ce bloc.
     /// </summary>
-    internal float MixInto(float[] mix, int offset, int count, float[] scratch)
+    internal float MixInto(float[] mix, int offset, int count, float[] scratch, bool soloActive = false)
     {
         var source = Source;
         float peak = _peak;
@@ -97,7 +116,9 @@ public sealed class MixerChannel
         int read = source.Read(scratch, 0, count);
         if (read < count) Array.Clear(scratch, read, count - read);
 
-        float targetGain = Muted ? 0f : Volume * ExternalGain * RouteGain;
+        bool silenced = Muted || (soloActive && !Solo);
+        float targetGain = silenced ? 0f : Volume * ExternalGain * RouteGain;
+        bool mono = Mono;
         float blockPeak = 0f;
         float gain = _currentGain;
         float step = frames > 0 ? (targetGain - gain) / frames : 0f;
@@ -105,8 +126,16 @@ public sealed class MixerChannel
         for (int i = 0, o = offset; i < count - 1; i += 2, o += 2)
         {
             gain += step;
-            float left = scratch[i] * gain;
-            float right = scratch[i + 1] * gain;
+            float sourceLeft = scratch[i];
+            float sourceRight = scratch[i + 1];
+            if (mono)
+            {
+                float middle = (sourceLeft + sourceRight) * 0.5f;
+                sourceLeft = middle;
+                sourceRight = middle;
+            }
+            float left = sourceLeft * gain;
+            float right = sourceRight * gain;
             mix[o] += left;
             mix[o + 1] += right;
 

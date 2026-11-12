@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using VoiceStudio.Audio.Mixing;
 using VoiceStudio.Audio.Processing;
+using VoiceStudio.Audio.Routing;
 using VoiceStudio.Audio.Services;
 
 namespace VoiceStudio.Audio;
@@ -39,8 +40,11 @@ public sealed class AudioEngine : IDisposable
 {
     private readonly object _gate = new();
     private readonly AudioCaptureService _microphone = new();
+    private readonly PreviewPlayer _preview = new();
+    private readonly RecordTap _microphoneTap;
     private readonly VirtualMicrophoneService _virtualMicrophone = new();
     private readonly ConcurrentDictionary<string, string> _busByApp = new(StringComparer.OrdinalIgnoreCase);
+    private EngineOptions? _lastOptions;
     private bool _pushToTalkEnabled;
     private bool _pushToTalkPressed;
     private bool _switchEnabled;
@@ -56,7 +60,8 @@ public sealed class AudioEngine : IDisposable
         Soundboard = new SoundboardService();
         Monitor = new MonitorService();
 
-        Mixer.Microphone.Source = Monitor.Attach(VoiceEffects.Chain);
+        _microphoneTap = new RecordTap(VoiceEffects.Chain);
+        Mixer.Microphone.Source = Monitor.Attach(_microphoneTap);
         Mixer.Soundboard.Source = Soundboard.Mixer;
         SystemAudio.SourcesChanged += RebuildRouting;
 
@@ -70,6 +75,36 @@ public sealed class AudioEngine : IDisposable
     public VoiceEffectsService VoiceEffects { get; }
     public SoundboardService Soundboard { get; }
     public MonitorService Monitor { get; }
+
+    /// <summary>
+    /// Commence à enregistrer la voix telle qu'elle part vers Discord, effets compris.
+    /// Le moteur doit tourner.
+    /// </summary>
+    public void StartMicrophoneTest(int seconds) => _microphoneTap.Start(seconds);
+
+    /// <summary>Arrête l'enregistrement du test et retourne ce qui a été capté.</summary>
+    public float[] StopMicrophoneTest() => _microphoneTap.Stop();
+
+    /// <summary>
+    /// Réécoute l'extrait sur le casque choisi, ou sur la sortie par défaut de Windows.
+    /// Ne passe pas par le micro virtuel : personne d'autre ne l'entend.
+    /// </summary>
+    public async Task<bool> PlayTestAsync(float[] samples, string? deviceId)
+    {
+        var device = (deviceId != null ? Devices.OpenDevice(deviceId) : null) ?? Devices.OpenDefaultOutput();
+        if (device == null) return false;
+        try
+        {
+            await _preview.PlayAsync(device, samples).ConfigureAwait(false);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public void StopTestPlayback() => _preview.Stop();
 
     /// <summary>Les bus d'applications (Jeu, Chat, Média, Autres).</summary>
     public IReadOnlyList<AudioBus> Buses => Mixer.Buses;
@@ -108,6 +143,25 @@ public sealed class AudioEngine : IDisposable
     /// la machine ne suit pas : augmenter la latence de sortie règle généralement le problème.
     /// </summary>
     public long Dropouts => _microphone.Dropouts;
+
+    /// <summary>
+    /// Latence totale annoncée, en millisecondes : capture, coussin anti-coupure,
+    /// anticipation du limiteur, suppression de bruit si elle est active, et sortie.
+    /// C'est le délai entre le moment où tu parles et celui où Discord reçoit le son.
+    /// </summary>
+    public int EstimatedLatencyMs
+    {
+        get
+        {
+            int capture = _lastOptions?.CaptureBufferMs ?? 20;
+            int cushion = Math.Max(25, capture + 10);
+            int limiter = (int)Math.Ceiling(
+                Mixer.Engine.LimiterLatencyFrames * 1000.0 / AudioConstants.SampleRate);
+            int suppression = VoiceEffects.Chain.NoiseSuppression.Enabled ? 21 : 0;
+            int output = _lastOptions?.OutputLatencyMs ?? 40;
+            return capture + cushion + limiter + suppression + output;
+        }
+    }
 
     /// <summary>Dernière erreur à afficher à l'utilisateur (null si tout va bien).</summary>
     public string? LastError { get; private set; }
@@ -232,6 +286,7 @@ public sealed class AudioEngine : IDisposable
             StopCore();
             LastError = null;
             LastWarning = null;
+            _lastOptions = options;
 
             var output = Devices.OpenDevice(options.OutputId)
                          ?? throw new InvalidOperationException(
@@ -345,6 +400,7 @@ public sealed class AudioEngine : IDisposable
     {
         lock (_gate) StopCore();
         SystemAudio.Dispose();
+        _preview.Dispose();
         Monitor.Dispose();
         _microphone.Dispose();
         _virtualMicrophone.Dispose();

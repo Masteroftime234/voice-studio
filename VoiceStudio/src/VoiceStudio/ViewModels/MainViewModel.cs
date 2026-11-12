@@ -22,6 +22,7 @@ public sealed class MainViewModel : ObservableObject
     private string? _errorMessage;
     private string _outputStatus = "Arrêté";
     private bool _isOutputFlowing;
+    private bool _isOverlayVisible;
     private long _lastFramesRendered;
     private int _stalledTicks;
 
@@ -36,12 +37,24 @@ public sealed class MainViewModel : ObservableObject
         VoiceFx = new VoiceFxViewModel(engine.VoiceEffects, _settings);
         Microphone = new MicrophoneViewModel(engine, _settings, ApplyMonitor, RefreshHotkeys);
         Soundboard = new SoundboardViewModel(engine.Soundboard, _settings, filePicker, RefreshHotkeys);
-        SettingsPage = new SettingsViewModel(engine, _settings, RestartIfRunning, ApplyMonitor);
+        SettingsPage = new SettingsViewModel(engine, _settings, settingsService, filePicker,
+            RestartIfRunning, ApplyMonitor, () => { });
+        Hotkeys = new HotkeysViewModel(_settings, RefreshHotkeys);
+        SettingsPage.HotkeysChanged += RefreshHotkeys;
+        Profiles = new ProfilesViewModel(_settings, Mixer, Microphone, VoiceFx);
+        Setup = new SetupViewModel(_settings, Mixer, () =>
+        {
+            OnPropertyChanged(nameof(SetupPending));
+            Section = "simple";
+        });
+        if (!_settings.SetupDone) _section = "demarrage";
+        _isOverlayVisible = _settings.OverlayVisible;
 
         engine.SystemAudio.ResolveSavedLevels = Mixer.SavedLevelsFor;
         engine.ResolveSavedBus = Mixer.SavedBusFor;
 
         ToggleEngineCommand = new RelayCommand(ToggleEngine);
+        ToggleOverlayCommand = new RelayCommand(() => IsOverlayVisible = !IsOverlayVisible);
         GoToCommand = new RelayCommand<string>(section => Section = section);
 
         engine.StateChanged += () => RunOnUi(OnEngineStateChanged);
@@ -68,8 +81,29 @@ public sealed class MainViewModel : ObservableObject
     public MicrophoneViewModel Microphone { get; }
     public SoundboardViewModel Soundboard { get; }
     public SettingsViewModel SettingsPage { get; }
+    public ProfilesViewModel Profiles { get; }
+    public SetupViewModel Setup { get; }
+    public HotkeysViewModel Hotkeys { get; }
+
+    /// <summary>La configuration guidée n'a pas encore été terminée.</summary>
+    public bool SetupPending => !_settings.SetupDone;
 
     public RelayCommand ToggleEngineCommand { get; }
+    public RelayCommand ToggleOverlayCommand { get; }
+
+    /// <summary>Le petit panneau flottant est affiché par-dessus les autres fenêtres.</summary>
+    public bool IsOverlayVisible
+    {
+        get => _isOverlayVisible;
+        set
+        {
+            if (!SetProperty(ref _isOverlayVisible, value)) return;
+            _settings.OverlayVisible = value;
+        }
+    }
+
+    /// <summary>Réglages du panneau flottant, partagés avec la fenêtre de l'overlay.</summary>
+    public AppSettings Settings => _settings;
     public RelayCommand<string> GoToCommand { get; }
 
     /// <summary>Page affichée : simple, mixer, voix, micro, soundboard ou reglages.</summary>
@@ -133,6 +167,7 @@ public sealed class MainViewModel : ObservableObject
         Mixer.RefreshMeters();
         Soundboard.RefreshPlayingState();
         Microphone.RefreshDropouts();
+        SettingsPage.RefreshLatency();
 
         if (!IsRunning) return;
         long frames = _engine.Mixer.Engine.FramesRendered;
@@ -164,6 +199,8 @@ public sealed class MainViewModel : ObservableObject
             keys.Add(_settings.PushToTalkVirtualKey);
         if (_settings.SwitchEnabled && _settings.SwitchVirtualKey != 0)
             keys.Add(_settings.SwitchVirtualKey);
+        if (_settings.OverlayVirtualKey != 0) keys.Add(_settings.OverlayVirtualKey);
+        keys.AddRange(Hotkeys.VirtualKeys);
         _keys.WatchOnly(keys);
     }
 
@@ -182,8 +219,36 @@ public sealed class MainViewModel : ObservableObject
         }
 
         if (!down) return;
+
+        if (virtualKey == _settings.OverlayVirtualKey && _settings.OverlayVirtualKey != 0)
+            RunOnUi(() => IsOverlayVisible = !IsOverlayVisible);
+
+        var action = Hotkeys.FindByKey(virtualKey);
+        if (action != null) RunOnUi(() => RunHotkeyAction(action.Id));
+
         var sound = Soundboard.FindByHotkey(virtualKey);
         if (sound != null) RunOnUi(() => _ = Soundboard.PlayAsync(sound));
+    }
+
+    /// <summary>Exécute l'action associée à un raccourci.</summary>
+    private void RunHotkeyAction(string id)
+    {
+        switch (id)
+        {
+            case HotkeysViewModel.MuteMicrophone:
+                Mixer.Microphone.IsMuted = !Mixer.Microphone.IsMuted;
+                break;
+            case HotkeysViewModel.MuteSounds:
+                bool silence = !Mixer.Buses.All(bus => bus.IsMuted);
+                foreach (var bus in Mixer.Buses) bus.IsMuted = silence;
+                break;
+            case HotkeysViewModel.VolumeUp:
+                Mixer.MasterVolume = Math.Min(150, Mixer.MasterVolume + 5);
+                break;
+            case HotkeysViewModel.VolumeDown:
+                Mixer.MasterVolume = Math.Max(0, Mixer.MasterVolume - 5);
+                break;
+        }
     }
 
     // ---- Moteur ----

@@ -23,8 +23,12 @@ public sealed class VoiceEffectsChain : ISampleProvider
         int rate = AudioConstants.SampleRate;
         Gate = new NoiseGate(rate);
         NoiseSuppression = new NoiseSuppressor(rate);
+        AutoLevel = new AutoLevel(rate);
         _effects =
         [
+            new PopFilterEffect(rate),
+            new CompressorEffect(rate),
+            new DeEsserEffect(rate),
             new PitchShiftEffect(rate),
             new FilterEffect(rate),
             new RobotEffect(rate),
@@ -43,6 +47,9 @@ public sealed class VoiceEffectsChain : ISampleProvider
 
     /// <summary>Suppression du bruit de fond, avant le noise gate.</summary>
     public NoiseSuppressor NoiseSuppression { get; }
+
+    /// <summary>Niveau automatique, appliqué après le noise gate.</summary>
+    public AutoLevel AutoLevel { get; }
 
     /// <summary>Les effets, dans l'ordre d'application.</summary>
     public IReadOnlyList<VoiceEffect> Effects => _effects;
@@ -107,6 +114,7 @@ public sealed class VoiceEffectsChain : ISampleProvider
         if (suppressorEnabled && !_suppressorWasEnabled) NoiseSuppression.Reset();
         _suppressorWasEnabled = suppressorEnabled;
 
+        bool autoLevelEnabled = AutoLevel.Enabled;
         bool gateEnabled = Gate.Enabled;
         bool effectsEnabled = EffectsEnabled;
         bool anyEffect = false;
@@ -120,7 +128,7 @@ public sealed class VoiceEffectsChain : ISampleProvider
         if (gateEnabled && !_gateWasEnabled) Gate.Reset();
         _gateWasEnabled = gateEnabled;
 
-        if (!suppressorEnabled && !gateEnabled && !anyEffect)
+        if (!suppressorEnabled && !gateEnabled && !autoLevelEnabled && !anyEffect)
             return count; // rien à faire : le signal passe tel quel
 
         int frames = count / 2;
@@ -131,8 +139,9 @@ public sealed class VoiceEffectsChain : ISampleProvider
 
         if (suppressorEnabled) NoiseSuppression.Process(mono);
         if (gateEnabled) Gate.Process(mono);
+        if (autoLevelEnabled) AutoLevel.Process(mono);
         for (int e = 0; e < _effects.Length; e++)
-            if (_wasActive[e]) _effects[e].Process(mono);
+            if (_wasActive[e]) _effects[e].Apply(mono);
 
         for (int i = 0, s = offset; i < frames; i++, s += 2)
         {
